@@ -1,0 +1,29 @@
+services:
+  go:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    user: go
+    working_dir: /home/go
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/home/go
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://ecommerce:ecommerce@db:5432/ecommerce?sslmode=disable
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ecommerce
+      POSTGRES_PASSWORD: ecommerce
+      POSTGRES_DB: ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
