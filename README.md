@@ -78,8 +78,8 @@ sequenceDiagram
 ```
 go-project/
 ├── go.mod
-├── docker-compose.yml            ← PostgreSQL + serveur HTTP
-├── Dockerfile                    ← image du serveur HTTP
+├── docker-compose.yml            ← PostgreSQL + serveur HTTP + serveur SSH
+├── Dockerfile                    ← compile le serveur HTTP et le serveur SSH
 ├── .env.example                  ← modèle de configuration (à copier en .env)
 ├── sql/
 │   ├── init.sql                  ← schéma + contraintes
@@ -322,11 +322,16 @@ Règles de dépendance :
 
 ```bash
 cp .env.example .env                                  # crée sa configuration locale
-docker compose up -d --build                          # lance PostgreSQL + le serveur HTTP
-docker compose exec server server create-admin --email admin@shop.local   # crée un admin (mot de passe demandé)
-go run ./cmd/client                                   # lance le CLI client (serveur par défaut : http://localhost:8080)
-go run ./cmd/admin                                    # lance le CLI admin
-go run ./cmd/ssh                                      # lance le serveur SSH (ports 23234 et 23235)
+docker compose up -d --build                          # lance PostgreSQL, le serveur HTTP et le serveur SSH
+docker compose exec server /app/server create-admin --email admin@shop.local   # crée un admin (mot de passe demandé)
+
+# Accès en terminal local
+go run ./cmd/client                                   # CLI client (serveur par défaut : http://localhost:8080)
+go run ./cmd/admin                                    # CLI admin
+
+# Accès en SSH (rien à installer)
+ssh -p 23234 localhost                                # interface client
+ssh -p 23235 localhost                                # interface admin
 ```
 
 ## Pénalités
