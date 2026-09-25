@@ -4,6 +4,13 @@
 -- Ordre des CREATE TABLE = ordre des dépendances (FK)
 -- À exécuter avant seed.sql
 --
+-- v5 — les VALEURS des statuts repassent en anglais (pending, paid,
+--   shipping, delivered, cancelled / open, paid), par cohérence avec
+--   les noms de tables/colonnes déjà en anglais. Les libellés affichés
+--   à l'utilisateur (« en attente », « payée »...) restent en français,
+--   traduits côté Go au moment de l'affichage — ce n'est plus la même
+--   valeur que celle stockée/échangée en JSON.
+--
 -- v4 — aligné sur DECISIONS.md (contrat de l'API, partie 2) :
 --   - les VALEURS des statuts de commande/panier sont en français
 --     (en_attente, payee, en_cours_livraison, livree, annulee /
@@ -47,17 +54,18 @@
 -- ------------------------------------------------------------
 
 CREATE TYPE user_role AS ENUM ('client', 'admin');
-CREATE TYPE cart_status AS ENUM ('ouvert', 'paye');
+CREATE TYPE cart_status AS ENUM ('open', 'paid');
 CREATE TYPE order_status AS ENUM (
-    'en_attente',
-    'payee',
-    'en_cours_livraison',
-    'livree',
-    'annulee'
+    'pending',
+    'paid',
+    'shipping',
+    'delivered',
+    'cancelled'
 );
--- Ces valeurs sont exposées telles quelles dans le JSON de l'API
--- (voir DECISIONS.md, partie 2, "Statuts de commande") : pas de
--- traduction français/anglais à faire côté Go.
+-- Ces valeurs sont exposées telles quelles dans le JSON de l'API.
+-- Les libellés en français ("En attente", "Payée"...) sont un
+-- affichage géré côté Go (une seule fonction de traduction), pas la
+-- valeur stockée ni échangée en JSON.
 
 -- ------------------------------------------------------------
 -- users
@@ -125,16 +133,16 @@ CREATE TABLE carts (
     id          SERIAL PRIMARY KEY,
     reference   VARCHAR(10) NOT NULL UNIQUE,            -- format BSK-XXXXXX
     user_id     INT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    status      cart_status NOT NULL DEFAULT 'ouvert',
+    status      cart_status NOT NULL DEFAULT 'open',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Un seul panier "ouvert" à la fois par utilisateur (les paniers "paye"
+-- Un seul panier "open" à la fois par utilisateur (les paniers "paid"
 -- passés ne sont pas concernés par la contrainte)
 CREATE UNIQUE INDEX idx_carts_open_unique_per_user
     ON carts (user_id)
-    WHERE status = 'ouvert';
+    WHERE status = 'open';
 
 -- ------------------------------------------------------------
 -- cart_items (table de liaison carts <-> products)
@@ -156,8 +164,8 @@ CREATE TABLE orders (
     reference      VARCHAR(10) NOT NULL UNIQUE,         -- format CMD-XXXXXX
     user_id        INT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     cart_id        INT REFERENCES carts(id) ON DELETE SET NULL, -- NULL si créée par un admin
-    status         order_status NOT NULL DEFAULT 'en_attente',
-    cancel_reason  TEXT,                                  -- rempli seulement si status = annulee
+    status         order_status NOT NULL DEFAULT 'pending',
+    cancel_reason  TEXT,                                  -- rempli seulement si status = cancelled
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
