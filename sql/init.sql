@@ -4,49 +4,36 @@
 -- Ordre des CREATE TABLE = ordre des dépendances (FK)
 -- À exécuter avant seed.sql
 --
--- v5 — les VALEURS des statuts repassent en anglais (pending, paid,
---   shipping, delivered, cancelled / open, paid), par cohérence avec
---   les noms de tables/colonnes déjà en anglais. Les libellés affichés
---   à l'utilisateur (« en attente », « payée »...) restent en français,
---   traduits côté Go au moment de l'affichage — ce n'est plus la même
---   valeur que celle stockée/échangée en JSON.
+-- v6 — retour à ce qui était prévu dans « Décisions et API » :
+--   - VALEURS des statuts de commande en anglais (pending, paid,
+--     shipping, delivered, cancelled), cohérentes avec les noms de
+--     tables/colonnes ; exposées telles quelles en JSON, et traduites
+--     en français uniquement à l'affichage côté Go
+--   - le panier est VIDÉ après validation (et non passé à un statut) :
+--     plus de type cart_status ni de colonne carts.status ; un seul
+--     panier par utilisateur, garanti par carts.user_id UNIQUE
+--   - users.confirmation_expires_at ajouté (le code de confirmation
+--     expire, comme le code de réinitialisation)
+--   - anonymisation : password_hash reste NOT NULL, l'application y
+--     écrit une chaîne vide '' (aucun mot de passe ne peut correspondre)
+--   - carts.user_id passe en ON DELETE CASCADE : supprimer réellement
+--     un utilisateur sans commande supprime aussi son panier
 --
--- v4 — aligné sur DECISIONS.md (contrat de l'API, partie 2) :
---   - les VALEURS des statuts de commande/panier sont en français
---     (en_attente, payee, en_cours_livraison, livree, annulee /
---     ouvert, paye), telles qu'exposées telles quelles en JSON —
---     seuls les noms de tables/colonnes restent en anglais
---
--- v3 — aligné sur ARCHITECTURE.md (section 7 "Modèle de données") :
---   - noms de tables/colonnes en anglais (cohérent avec le code Go,
---     les DTO JSON et les routes de l'API)
---   - dates en TIMESTAMPTZ (UTC en base, converties en heure de Paris
---     uniquement à l'affichage)
+-- Rappel des choix précédents (v3) :
+--   - noms de tables/colonnes en anglais
+--   - dates en TIMESTAMPTZ (UTC en base, heure de Paris à l'affichage)
 --   - référence métier sur 6 caractères [A-Z0-9] : PDT-XXXXXX,
 --     BSK-XXXXXX, CMD-XXXXXX (10 caractères au total)
---   - sessions : le jeton lui-même est la clé primaire ; la ligne est
---     supprimée à la déconnexion (pas de colonne "révoquée")
---   - cart_items : clé primaire composée (cart_id, product_id), pas
---     de colonne id — applique directement "un produit par panier"
---   - price_ht > 0 (CHECK strict) ; price_ttc = colonne générée par
---     la base (ROUND(price_ht * 1.2), TVA fixe 20 %), jamais recalculée
---     en Go
---   - order_items recopie aussi le NOM du produit, en plus du prix,
---     au moment de la commande (pas seulement le prix figé)
---   - produit déjà commandé -> archivé (active = false), jamais
---     supprimé ; suppression réelle uniquement si jamais commandé
---   - utilisateur avec commandes -> anonymisé (deleted_at), jamais
---     supprimé ; suppression réelle uniquement si aucune commande
---   - aucune table "payments" : le paiement ne persiste aucune donnée
---     bancaire, même réduite (ni numéro, ni 4 derniers chiffres, ni
---     marque) — seul order.status passe à 'payee'. À confirmer avec
---     Elias : si vous voulez quand même tracer un montant/une date de
---     paiement, je peux ajouter deux colonnes sur `orders`
---     (paid_amount, paid_at) sans réintroduire de table dédiée.
---
--- Note SQLite : SQLite n'a pas de type ENUM natif, pas de SERIAL, pas
--- de TIMESTAMPTZ, et pas de colonnes générées STORED avant la version
--- 3.31. Dites-le-moi si vous partez sur SQLite, je prépare une variante.
+--   - sessions : le jeton est la clé primaire ; ligne supprimée à la
+--     déconnexion
+--   - cart_items : clé primaire composée (cart_id, product_id)
+--   - price_ht > 0 ; price_ttc = colonne générée (ROUND(price_ht * 1.2)),
+--     jamais recalculée en Go
+--   - order_items recopie le NOM et le PRIX du produit à la commande
+--   - produit déjà commandé -> archivé (active = false)
+--   - utilisateur avec commandes -> anonymisé (deleted_at)
+--   - aucune table "payments" : aucune donnée bancaire n'est stockée,
+--     seul orders.status passe à 'paid'
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -54,18 +41,16 @@
 -- ------------------------------------------------------------
 
 CREATE TYPE user_role AS ENUM ('client', 'admin');
-CREATE TYPE cart_status AS ENUM ('open', 'paid');
 CREATE TYPE order_status AS ENUM (
-    'pending',
-    'paid',
-    'shipping',
-    'delivered',
-    'cancelled'
+    'pending',      -- En attente
+    'paid',         -- Payée
+    'shipping',     -- En cours de livraison
+    'delivered',    -- Livrée
+    'cancelled'     -- Annulée
 );
 -- Ces valeurs sont exposées telles quelles dans le JSON de l'API.
--- Les libellés en français ("En attente", "Payée"...) sont un
--- affichage géré côté Go (une seule fonction de traduction), pas la
--- valeur stockée ni échangée en JSON.
+-- Les libellés en français ("En attente", "Payée"...) sont un affichage
+-- géré côté Go par une seule fonction de traduction.
 
 -- ------------------------------------------------------------
 -- users
@@ -74,12 +59,13 @@ CREATE TYPE order_status AS ENUM (
 CREATE TABLE users (
     id                          SERIAL PRIMARY KEY,
     email                       VARCHAR(255) NOT NULL UNIQUE,
-    password_hash               VARCHAR(255) NOT NULL, -- bcrypt, jamais en clair
+    password_hash               VARCHAR(255) NOT NULL, -- bcrypt, jamais en clair ; '' si anonymisé
     role                        user_role NOT NULL DEFAULT 'client',
     confirmed                   BOOLEAN NOT NULL DEFAULT false,
-    confirmation_code           VARCHAR(64),            -- code unique, NULL une fois utilisé
-    password_reset_code         VARCHAR(64),
-    password_reset_expires_at   TIMESTAMPTZ,
+    confirmation_code           VARCHAR(64),            -- NULL une fois utilisé
+    confirmation_expires_at     TIMESTAMPTZ,            -- expiration du code de confirmation
+    password_reset_code         VARCHAR(64),            -- NULL une fois utilisé
+    password_reset_expires_at   TIMESTAMPTZ,            -- expiration du code de réinitialisation
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at                  TIMESTAMPTZ             -- date d'anonymisation (compte conservé,
@@ -126,23 +112,16 @@ CREATE TABLE products (
 );
 
 -- ------------------------------------------------------------
--- carts
+-- carts (un seul panier par utilisateur, vidé après validation)
 -- ------------------------------------------------------------
 
 CREATE TABLE carts (
     id          SERIAL PRIMARY KEY,
     reference   VARCHAR(10) NOT NULL UNIQUE,            -- format BSK-XXXXXX
-    user_id     INT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    status      cart_status NOT NULL DEFAULT 'open',
+    user_id     INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
--- Un seul panier "open" à la fois par utilisateur (les paniers "paid"
--- passés ne sont pas concernés par la contrainte)
-CREATE UNIQUE INDEX idx_carts_open_unique_per_user
-    ON carts (user_id)
-    WHERE status = 'open';
 
 -- ------------------------------------------------------------
 -- cart_items (table de liaison carts <-> products)
@@ -187,12 +166,11 @@ CREATE TABLE order_items (
 -- ============================================================
 -- Index sur les clés étrangères
 -- (PostgreSQL n'indexe pas automatiquement les FK, seulement les
--- colonnes PRIMARY KEY / UNIQUE)
+-- colonnes PRIMARY KEY / UNIQUE ; carts.user_id est déjà UNIQUE)
 -- ============================================================
 
 CREATE INDEX idx_sessions_user_id       ON sessions(user_id);
 CREATE INDEX idx_products_category_id   ON products(category_id);
-CREATE INDEX idx_carts_user_id          ON carts(user_id);
 CREATE INDEX idx_cart_items_product_id  ON cart_items(product_id);
 CREATE INDEX idx_orders_user_id         ON orders(user_id);
 CREATE INDEX idx_orders_cart_id         ON orders(cart_id);
