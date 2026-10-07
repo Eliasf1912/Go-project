@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -14,21 +15,24 @@ import (
 
 type PasswordHasher interface {
 	Hash(password string) (string, error)
+	CompareHash(password, hash string) bool
 }
-
+type SessionRepository interface {
+	Create(ctx context.Context, session domain.Session) error
+}
 type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (domain.User, error)
 	Create(ctx context.Context, user domain.User) (int, error)
 	Update(ctx context.Context, user domain.User) error
 }
-
 type AuthService struct {
-	users  UserRepository
-	hasher PasswordHasher
+	users    UserRepository
+	hasher   PasswordHasher
+	sessions SessionRepository
 }
 
-func NewAuthService(users UserRepository, hasher PasswordHasher) *AuthService {
-	return &AuthService{users: users, hasher: hasher}
+func NewAuthService(users UserRepository, hasher PasswordHasher, sessions SessionRepository) *AuthService {
+	return &AuthService{users: users, hasher: hasher, sessions: sessions}
 }
 
 func generateCode() (string, error) {
@@ -37,6 +41,19 @@ func generateCode() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%06d", number), nil
+}
+
+func generateToken() (string, error) {
+
+	tokenBytes := make([]byte, 32)
+
+	_, err := rand.Read(tokenBytes)
+
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(tokenBytes), nil
 }
 
 func (s *AuthService) Register(ctx context.Context, email string, password string) error {
@@ -126,4 +143,54 @@ func (s *AuthService) Confirm(ctx context.Context, email string, code string) er
 	}
 
 	return nil
+}
+
+func (s *AuthService) Login(ctx context.Context, email, password string) (string, error) {
+
+	normalizedEmail, err := domain.NormalizeEmail(email)
+
+	if err != nil {
+		return "", err
+	}
+
+	user, err := s.users.FindByEmail(ctx, normalizedEmail)
+
+	if errors.Is(err, domain.ErrNotFound) {
+		return "", domain.ErrInvalidCredentials
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("recherche de l'utilisateur : %w", err)
+	}
+
+	if !s.hasher.CompareHash(password, user.PasswordHash) {
+		return "", domain.ErrInvalidCredentials
+	}
+
+	if !user.CanLogin() {
+		return "", domain.ErrAccountNotConfirmed
+	}
+
+	token, err := generateToken()
+
+	if err != nil {
+		return "", fmt.Errorf("génération du token : %w", err)
+	}
+
+	now := time.Now()
+
+	userSession := domain.Session{
+		Token:     token,
+		UserID:    user.ID,
+		CreatedAt: now,
+		ExpiresAt: now.Add(time.Hour * 24),
+	}
+
+	err = s.sessions.Create(ctx, userSession)
+
+	if err != nil {
+		return "", fmt.Errorf("enregistrement de la session : %w", err)
+	}
+
+	return token, nil
 }

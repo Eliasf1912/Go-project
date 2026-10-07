@@ -11,4 +11,6 @@ var (
 	ErrAccountAlreadyConfirmed = errors.New("ce compte à déja été confirmé")
 	ErrInvalidCode             = errors.New("le code est invalide")
 	ErrCodeExpired             = errors.New("le code a expiré")
+	ErrInvalidCredentials      = errors.New("les identifiants sont mauvais")
+	ErrAccountNotConfirmed     = errors.New("Le compte n'est pas comfirmé")
 )
