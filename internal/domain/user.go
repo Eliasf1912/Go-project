@@ -54,9 +54,11 @@ func NormalizeEmail(email string) (string, error) {
 	return email, nil
 }
 
+// TODO: limite de 72 octets (bcrypt)
 func ValidatePassword(password string) error {
 	if len(password) < 8 {
 		return ErrPasswordTooShort
 	}
+
 	return nil
 }
