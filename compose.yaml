@@ -9,6 +9,8 @@ services:
     stdin_open: true
     volumes:
       - .:/home/go
+    ports:
+      - "8080:8080"
     depends_on:
       - db
     environment:
@@ -24,6 +26,10 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      # Exécutés par ordre alphabétique, uniquement au premier démarrage
+      # (volume db_data vide). Pour les rejouer : docker compose down -v
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
 
   adminer:
     image: adminer
