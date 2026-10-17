@@ -16,7 +16,7 @@ func TestFormat(t *testing.T) {
 		{"commande", NewOrderRef, `^CMD-[A-Z0-9]{6}$`},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { // tt = test table
 		t.Run(tt.name, func(t *testing.T) {
 			re := regexp.MustCompile(tt.pattern)
 			for range 1000 {
