@@ -19,13 +19,13 @@ func (h *AuthHandler) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok || token == "" {
-			writeError(w, domain.ErrUnauthorized)
+			writeDomainError(w, domain.ErrUnauthorized)
 			return
 		}
 
 		user, err := h.auth.Authenticate(r.Context(), token)
 		if err != nil {
-			writeError(w, err)
+			writeDomainError(w, err)
 			return
 		}
 
