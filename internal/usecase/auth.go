@@ -19,9 +19,11 @@ type PasswordHasher interface {
 }
 type SessionRepository interface {
 	Create(ctx context.Context, session domain.Session) error
+	FindByToken(ctx context.Context, token string) (domain.Session, error)
 }
 type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (domain.User, error)
+	FindByID(ctx context.Context, id int) (domain.User, error)
 	Create(ctx context.Context, user domain.User) (int, error)
 	Update(ctx context.Context, user domain.User) error
 }
@@ -193,4 +195,32 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 	}
 
 	return token, nil
+}
+
+func (s *AuthService) Authenticate(ctx context.Context, token string) (domain.User, error) {
+	session, err := s.sessions.FindByToken(ctx, token)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("recherche de la session : %w", err)
+	}
+
+	if session.IsExpired(time.Now()) {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	user, err := s.users.FindByID(ctx, session.UserID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("recherche de l'utilisateur de la session : %w", err)
+	}
+
+	if !user.CanLogin() {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+
+	return user, nil
 }

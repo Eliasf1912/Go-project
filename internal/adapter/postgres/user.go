@@ -21,15 +21,14 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) FindByEmail(ctx context.Context, email string) (domain.User, error) {
-	query := `
-		SELECT id, email, password_hash, role, confirmed,
-		confirmation_code, confirmation_expires_at,
-		password_reset_code, password_reset_expires_at,
-		created_at, updated_at, deleted_at
-		FROM users
-		WHERE email = $1`
+// userColumns liste les colonnes lues par scanUser, dans le même ordre que le Scan.
+const userColumns = `id, email, password_hash, role, confirmed,
+	confirmation_code, confirmation_expires_at,
+	password_reset_code, password_reset_expires_at,
+	created_at, updated_at, deleted_at`
 
+// scanUser lit une ligne de la table users et la convertit en domain.User.
+func scanUser(row *sql.Row) (domain.User, error) {
 	var (
 		user                   domain.User
 		confirmationCode       sql.NullString
@@ -39,17 +38,14 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (domain.
 		deletedAt              sql.NullTime
 	)
 
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
+	err := row.Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.Confirmed,
 		&confirmationCode, &confirmationExpiresAt,
 		&passwordResetCode, &passwordResetExpiresAt,
 		&user.CreatedAt, &user.UpdatedAt, &deletedAt,
 	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.User{}, domain.ErrNotFound
-	}
 	if err != nil {
-		return domain.User{}, fmt.Errorf("recherche de l'utilisateur par email : %w", err)
+		return domain.User{}, err
 	}
 
 	user.ConfirmationCode = confirmationCode.String
@@ -58,6 +54,30 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (domain.
 	user.PasswordResetExpiresAt = nullTimeToPtr(passwordResetExpiresAt)
 	user.DeletedAt = nullTimeToPtr(deletedAt)
 
+	return user, nil
+}
+
+func (r *UserRepository) FindByEmail(ctx context.Context, email string) (domain.User, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE email = $1`, email)
+	user, err := scanUser(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("recherche de l'utilisateur par email : %w", err)
+	}
+	return user, nil
+}
+
+func (r *UserRepository) FindByID(ctx context.Context, id int) (domain.User, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE id = $1`, id)
+	user, err := scanUser(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("recherche de l'utilisateur par id : %w", err)
+	}
 	return user, nil
 }
 
@@ -75,7 +95,7 @@ func (r *UserRepository) Create(ctx context.Context, user domain.User) (int, err
 	).Scan(&id)
 	if err != nil {
 		// TODO : traduire la violation de la contrainte UNIQUE sur l'email
-		// en domain.ErrEmailTaken (nécessite le driver pgx, voir plus bas).
+		// en domain.ErrEmailTaken (nécessite le driver pgx).
 		return 0, fmt.Errorf("création de l'utilisateur : %w", err)
 	}
 	return id, nil
