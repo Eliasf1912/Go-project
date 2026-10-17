@@ -7,8 +7,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/Eliasf1912/go-project/internal/adapter/hasher"
 	"github.com/Eliasf1912/go-project/internal/adapter/httpserver"
 	"github.com/Eliasf1912/go-project/internal/adapter/postgres"
+	"github.com/Eliasf1912/go-project/internal/usecase"
 )
 
 func main() {
@@ -27,9 +29,20 @@ func main() {
 	defer db.Close()
 	log.Println("connecté à PostgreSQL")
 
+	// Adapters
+	userRepo := postgres.NewUserRepository(db)
+	sessionRepo := postgres.NewSessionRepository(db)
+	passwordHasher := &hasher.BcryptHasher{}
+
+	// Usecases
+	authService := usecase.NewAuthService(userRepo, passwordHasher, sessionRepo)
+
+	// Handlers HTTP
+	authHandler := httpserver.NewAuthHandler(authService)
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpserver.NewRouter(),
+		Handler:           httpserver.NewRouter(authHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
