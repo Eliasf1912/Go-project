@@ -29,17 +29,17 @@ func generate(length int) string {
 	return string(code)
 }
 
-// NewProductID génère un identifiant métier de produit, ex: PDT-7D2K8N
-func NewProductID() string {
+// NewProductRef génère une référence métier de produit, ex: PDT-7D2K8N
+func NewProductRef() string {
 	return "PDT-" + generate(6)
 }
 
-// NewCartID génère un identifiant métier de panier, ex: BSK-1KH8E7
-func NewCartID() string {
+// NewCartRef génère une référence métier de panier, ex: BSK-1KH8E7
+func NewCartRef() string {
 	return "BSK-" + generate(6)
 }
 
-// NewOrderID génère un identifiant métier de commande, ex: CMD-1F2S8B
-func NewOrderID() string {
+// NewOrderRef génère une référence métier de commande, ex: CMD-1F2S8B
+func NewOrderRef() string {
 	return "CMD-" + generate(6)
 }
