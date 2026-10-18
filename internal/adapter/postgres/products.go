@@ -135,3 +135,14 @@ func (r *ProductRepository) FindActiveByID(ctx context.Context, id int) (domain.
 
 	return product, nil
 }
+
+// likeEscaper neutralise les caractères spéciaux de LIKE/ILIKE : % (n'importe
+// quelle suite de caractères), _ (un caractère quelconque) et \ (le caractère
+// d'échappement par défaut de PostgreSQL).
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// escapeLikePattern échappe ces caractères dans le texte saisi, pour qu'une
+// recherche « 50% » trouve exactement « 50% » au lieu de tout renvoyer.
+func escapeLikePattern(s string) string {
+	return likeEscaper.Replace(s)
+}
