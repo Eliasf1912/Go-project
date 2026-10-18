@@ -37,12 +37,18 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrCardExpired),
 		errors.Is(err, domain.ErrInvalidCVC),
 		errors.Is(err, domain.ErrCancelReasonRequired),
-		errors.Is(err, domain.ErrInvalidPriceRange):
+		errors.Is(err, domain.ErrInvalidPriceRange),
+		errors.Is(err, domain.ErrInvalidQuantity),
+		errors.Is(err, domain.ErrOrderHasNoItems):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrEmailTaken),
 		errors.Is(err, domain.ErrOrderNotPending),
 		errors.Is(err, domain.ErrOrderStatusChanged),
-		errors.Is(err, domain.ErrOrderNotCancellable):
+		errors.Is(err, domain.ErrOrderNotCancellable),
+		errors.Is(err, domain.ErrCartEmpty),
+		errors.Is(err, domain.ErrCartHasInactiveProduct),
+		errors.Is(err, domain.ErrOrderNotPaid),
+		errors.Is(err, domain.ErrOrderNotShipping):
 		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, domain.ErrInvalidCredentials),
 		errors.Is(err, domain.ErrUnauthorized):
@@ -51,6 +57,14 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, domain.ErrAccountNotConfirmed):
 		writeError(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, domain.ErrInvalidCategoryName):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrForbidden):
+		writeError(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain.ErrCategoryNameTaken), errors.Is(err, domain.ErrCategoryInUse):
+		writeError(w, http.StatusConflict, err.Error())
 	default:
 		log.Printf("erreur interne : %v", err)
 		writeError(w, http.StatusInternalServerError, "erreur interne")
