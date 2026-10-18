@@ -93,9 +93,10 @@ func (r *UserRepository) Create(ctx context.Context, user domain.User) (int, err
 		user.Email, user.PasswordHash, user.Role, user.Confirmed,
 		stringToNull(user.ConfirmationCode), user.ConfirmationExpiresAt,
 	).Scan(&id)
+	if pgErrorCode(err) == codeUniqueViolation {
+		return 0, domain.ErrEmailTaken
+	}
 	if err != nil {
-		// TODO : traduire la violation de la contrainte UNIQUE sur l'email
-		// en domain.ErrEmailTaken (nécessite le driver pgx).
 		return 0, fmt.Errorf("création de l'utilisateur : %w", err)
 	}
 	return id, nil

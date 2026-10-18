@@ -49,3 +49,19 @@ func TokenFromContext(ctx context.Context) (string, bool) {
 	token, ok := ctx.Value(tokenKey).(string)
 	return token, ok
 }
+
+// RequireAdmin laisse passer la requête seulement si l'utilisateur connecté est admin.
+func (h *AuthHandler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return h.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := UserFromContext(r.Context())
+		if !ok {
+			writeDomainError(w, domain.ErrUnauthorized)
+			return
+		}
+		if user.Role != domain.RoleAdmin {
+			writeDomainError(w, domain.ErrForbidden)
+			return
+		}
+		next(w, r)
+	})
+}

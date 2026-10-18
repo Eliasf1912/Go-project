@@ -14,4 +14,7 @@ var (
 	ErrInvalidCredentials      = errors.New("les identifiants sont mauvais")
 	ErrAccountNotConfirmed     = errors.New("Le compte n'est pas comfirmé")
 	ErrUnauthorized            = errors.New("session invalide ou expirée")
+	ErrForbidden               = errors.New("accès réservé aux administrateurs")
+	ErrCategoryNameTaken       = errors.New("cette catégorie existe déjà")
+	ErrCategoryInUse           = errors.New("catégorie utilisée par des produits")
 )
