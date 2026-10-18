@@ -17,4 +17,5 @@ var (
 	ErrForbidden               = errors.New("accès réservé aux administrateurs")
 	ErrCategoryNameTaken       = errors.New("cette catégorie existe déjà")
 	ErrCategoryInUse           = errors.New("catégorie utilisée par des produits")
+	ErrCannotDeleteSelf        = errors.New("impossible de supprimer son propre compte")
 )

@@ -38,14 +38,16 @@ func main() {
 	// Usecases
 	authService := usecase.NewAuthService(userRepo, passwordHasher, sessionRepo)
 	categoryService := usecase.NewCategoryService(categoryRepo)
+	userService := usecase.NewUserService(userRepo)
 
 	// Handlers HTTP
 	authHandler := httpserver.NewAuthHandler(authService)
 	categoryHandler := httpserver.NewCategoryHandler(categoryService)
+	userHandler := httpserver.NewUserHandler(userService)
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpserver.NewRouter(authHandler, categoryHandler),
+		Handler:           httpserver.NewRouter(authHandler, categoryHandler, userHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -21,6 +21,8 @@ const (
 	screenCategories
 	screenCategoryActions
 	screenCategoryForm
+	screenUsers
+	screenUserActions
 )
 
 // Même ordre que dans goMain.
@@ -48,6 +50,9 @@ type Model struct {
 
 	categories []dto.CategoryResponse
 	selected   dto.CategoryResponse // catégorie choisie (ID 0 : nouvelle)
+
+	users        []dto.UserResponse
+	selectedUser dto.UserResponse
 }
 
 func New(api *apiclient.Client) Model {
@@ -120,6 +125,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, loadCategoriesCmd(m.api)
 
+	case usersLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.users = msg.users
+		m.goUsers()
+		return m, nil
+
+	case userDeletedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		if msg.anonymized {
+			m.info = "Compte anonymisé (il avait des commandes)."
+		} else {
+			m.info = "Compte supprimé."
+		}
+		m.loading = true
+		return m, loadUsersCmd(m.api)
+
 	case logoutDoneMsg:
 		m.loading = false
 		if m.quitting {
@@ -145,6 +174,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCategoryActions(msg)
 	case screenCategoryForm:
 		return m.updateCategoryForm(msg)
+	case screenUsers:
+		return m.updateUsers(msg)
+	case screenUserActions:
+		return m.updateUserActions(msg)
 	}
 	return m, nil
 }
@@ -176,7 +209,11 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err, m.info = "", ""
 		m.loading = true
 		return m, loadCategoriesCmd(m.api)
-	case mainUsers, mainProducts, mainOrders:
+	case mainUsers:
+		m.err, m.info = "", ""
+		m.loading = true
+		return m, loadUsersCmd(m.api)
+	case mainProducts, mainOrders:
 		m.info = "Bientôt disponible."
 	case mainLogout:
 		m.loading = true
@@ -231,6 +268,10 @@ func (m Model) title() string {
 	switch m.screen {
 	case screenCategories:
 		return "Catégories"
+	case screenUsers:
+		return "Utilisateurs"
+	case screenUserActions:
+		return "Utilisateur : " + m.selectedUser.Email
 	case screenCategoryActions:
 		return "Catégorie : " + m.selected.Name
 	case screenCategoryForm:
@@ -260,8 +301,10 @@ func (m Model) help() string {
 func (m Model) back() (tea.Model, tea.Cmd) {
 	m.err, m.info = "", ""
 	switch m.screen {
-	case screenCategories:
+	case screenCategories, screenUsers:
 		m.goMain()
+	case screenUserActions:
+		m.goUsers()
 	case screenCategoryActions, screenCategoryForm:
 		m.goCategories()
 	}
