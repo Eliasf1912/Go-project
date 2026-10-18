@@ -38,12 +38,17 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrInvalidCVC),
 		errors.Is(err, domain.ErrCancelReasonRequired),
 		errors.Is(err, domain.ErrInvalidPriceRange),
-		errors.Is(err, domain.ErrInvalidQuantity):
+		errors.Is(err, domain.ErrInvalidQuantity),
+		errors.Is(err, domain.ErrOrderHasNoItems):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrEmailTaken),
 		errors.Is(err, domain.ErrOrderNotPending),
 		errors.Is(err, domain.ErrOrderStatusChanged),
-		errors.Is(err, domain.ErrOrderNotCancellable):
+		errors.Is(err, domain.ErrOrderNotCancellable),
+		errors.Is(err, domain.ErrCartEmpty),
+		errors.Is(err, domain.ErrCartHasInactiveProduct),
+		errors.Is(err, domain.ErrOrderNotPaid),
+		errors.Is(err, domain.ErrOrderNotShipping):
 		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, domain.ErrInvalidCredentials),
 		errors.Is(err, domain.ErrUnauthorized):
