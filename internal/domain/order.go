@@ -39,6 +39,26 @@ func (o *Order) MarkAsPaid() error {
 	return nil
 }
 
+// MarkAsShipping fait passer la commande de paid à shipping. Réservé à
+// l'admin : le client n'a aucune action sur la livraison.
+func (o *Order) MarkAsShipping() error {
+	if o.Status != OrderStatusPaid {
+		return ErrOrderNotPaid
+	}
+	o.Status = OrderStatusShipping
+	return nil
+}
+
+// MarkAsDelivered fait passer la commande de shipping à delivered. Réservé
+// à l'admin.
+func (o *Order) MarkAsDelivered() error {
+	if o.Status != OrderStatusShipping {
+		return ErrOrderNotShipping
+	}
+	o.Status = OrderStatusDelivered
+	return nil
+}
+
 // Cancel fait passer la commande en "cancelled", avec une raison
 // obligatoire. Possible seulement depuis pending ou paid : une commande déjà en livraison, livrée ou annulée ne peut
 // pas être annulée.
@@ -90,6 +110,22 @@ func NewOrderFromCart(cart Cart, reference string) (Order, error) {
 		Reference: reference,
 		UserID:    cart.UserID,
 		CartID:    &cartID,
+		Status:    OrderStatusPending,
+		Items:     items,
+	}, nil
+}
+
+// NewOrderForUser construit une commande "pending" créée par un admin pour
+// un client : pas de panier associé (CartID reste nil), les lignes sont
+// déjà résolues (produit actif, nom et prix HT recopiés) par l'appelant.
+// Refuse une commande sans aucun produit.
+func NewOrderForUser(userID int, items []OrderItem, reference string) (Order, error) {
+	if len(items) == 0 {
+		return Order{}, ErrOrderHasNoItems
+	}
+	return Order{
+		Reference: reference,
+		UserID:    userID,
 		Status:    OrderStatusPending,
 		Items:     items,
 	}, nil

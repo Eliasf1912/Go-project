@@ -60,6 +60,22 @@ func (r *fakeOrderRepo) ListByUserID(_ context.Context, userID int) ([]domain.Or
 	return orders, nil
 }
 
+func (r *fakeOrderRepo) ListAll(_ context.Context) ([]domain.Order, error) {
+	orders := make([]domain.Order, 0, len(r.orders))
+	for _, o := range r.orders {
+		orders = append(orders, o)
+	}
+	return orders, nil
+}
+
+func (r *fakeOrderRepo) Delete(_ context.Context, id int) error {
+	if _, ok := r.orders[id]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(r.orders, id)
+	return nil
+}
+
 func (r *fakeOrderRepo) FindByID(_ context.Context, id int) (domain.Order, error) {
 	o, ok := r.orders[id]
 	if !ok {
@@ -338,4 +354,170 @@ func TestCheckout_ProduitArchive(t *testing.T) {
 	if len(stillThere.Items) != 1 {
 		t.Errorf("panier après refus = %+v, attendu inchangé", stillThere.Items)
 	}
+}
+
+func TestListAll_RenvoieToutesLesCommandes(t *testing.T) {
+	repo := newFakeOrderRepo(
+		domain.Order{ID: 1, UserID: 10},
+		domain.Order{ID: 2, UserID: 20},
+	)
+	service := usecase.NewOrderService(repo, newFakeCartRepo(), &fakeProductLookup{})
+
+	orders, err := service.ListAll(context.Background())
+	if err != nil {
+		t.Fatalf("ListAll() erreur inattendue : %v", err)
+	}
+	if len(orders) != 2 {
+		t.Fatalf("attendu 2 commandes, obtenu %d", len(orders))
+	}
+}
+
+func TestCreateForUser_Succes(t *testing.T) {
+	products := &fakeProductLookup{active: map[int]domain.Product{
+		1: {ID: 1, Name: "Clavier", PriceHT: 4999},
+	}}
+	orderRepo := newFakeOrderRepo()
+	service := usecase.NewOrderService(orderRepo, newFakeCartRepo(), products)
+
+	order, err := service.CreateForUser(context.Background(), 10, []usecase.OrderLine{
+		{ProductID: 1, Quantity: 2},
+	})
+	if err != nil {
+		t.Fatalf("CreateForUser() erreur inattendue : %v", err)
+	}
+	if order.UserID != 10 || order.Status != domain.OrderStatusPending {
+		t.Errorf("commande = %+v, inattendue", order)
+	}
+	if order.CartID != nil {
+		t.Errorf("CartID = %v, attendu nil (pas de panier)", order.CartID)
+	}
+	if len(order.Items) != 1 || order.Items[0].ProductName != "Clavier" || order.Items[0].PriceHT != 4999 {
+		t.Errorf("lignes = %+v, inattendues", order.Items)
+	}
+}
+
+func TestCreateForUser_Erreurs(t *testing.T) {
+	products := &fakeProductLookup{active: map[int]domain.Product{1: {ID: 1}}}
+
+	t.Run("produit archivé ou inexistant", func(t *testing.T) {
+		service := usecase.NewOrderService(newFakeOrderRepo(), newFakeCartRepo(), products)
+		_, err := service.CreateForUser(context.Background(), 10, []usecase.OrderLine{{ProductID: 99, Quantity: 1}})
+		if !errors.Is(err, domain.ErrNotFound) {
+			t.Errorf("CreateForUser() = %v, attendu %v", err, domain.ErrNotFound)
+		}
+	})
+
+	t.Run("quantité invalide", func(t *testing.T) {
+		service := usecase.NewOrderService(newFakeOrderRepo(), newFakeCartRepo(), products)
+		_, err := service.CreateForUser(context.Background(), 10, []usecase.OrderLine{{ProductID: 1, Quantity: 0}})
+		if !errors.Is(err, domain.ErrInvalidQuantity) {
+			t.Errorf("CreateForUser() = %v, attendu %v", err, domain.ErrInvalidQuantity)
+		}
+	})
+
+	t.Run("aucune ligne", func(t *testing.T) {
+		service := usecase.NewOrderService(newFakeOrderRepo(), newFakeCartRepo(), products)
+		_, err := service.CreateForUser(context.Background(), 10, nil)
+		if !errors.Is(err, domain.ErrOrderHasNoItems) {
+			t.Errorf("CreateForUser() = %v, attendu %v", err, domain.ErrOrderHasNoItems)
+		}
+	})
+}
+
+func TestShip(t *testing.T) {
+	tests := []struct {
+		name    string
+		from    domain.OrderStatus
+		wantErr error
+	}{
+		{"commande payée", domain.OrderStatusPaid, nil},
+		{"commande en attente", domain.OrderStatusPending, domain.ErrOrderNotPaid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeOrderRepo(domain.Order{ID: 1, Status: tt.from})
+			service := usecase.NewOrderService(repo, newFakeCartRepo(), &fakeProductLookup{})
+
+			order, err := service.Ship(context.Background(), 1)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Ship() = %v, attendu %v", err, tt.wantErr)
+			}
+			if tt.wantErr == nil {
+				if order.Status != domain.OrderStatusShipping {
+					t.Errorf("statut renvoyé = %s, attendu shipping", order.Status)
+				}
+				if got := repo.orders[1].Status; got != domain.OrderStatusShipping {
+					t.Errorf("statut enregistré = %s, attendu shipping", got)
+				}
+			}
+		})
+	}
+}
+
+func TestDeliver(t *testing.T) {
+	tests := []struct {
+		name    string
+		from    domain.OrderStatus
+		wantErr error
+	}{
+		{"commande en livraison", domain.OrderStatusShipping, nil},
+		{"commande payée mais pas expédiée", domain.OrderStatusPaid, domain.ErrOrderNotShipping},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeOrderRepo(domain.Order{ID: 1, Status: tt.from})
+			service := usecase.NewOrderService(repo, newFakeCartRepo(), &fakeProductLookup{})
+
+			order, err := service.Deliver(context.Background(), 1)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Deliver() = %v, attendu %v", err, tt.wantErr)
+			}
+			if tt.wantErr == nil && order.Status != domain.OrderStatusDelivered {
+				t.Errorf("statut renvoyé = %s, attendu delivered", order.Status)
+			}
+		})
+	}
+}
+
+func TestCancelAsAdmin(t *testing.T) {
+	// À la différence de Cancel, aucune vérification de propriétaire :
+	// l'admin annule la commande d'un client qu'il n'est pas lui-même.
+	repo := newFakeOrderRepo(domain.Order{ID: 1, UserID: 10, Status: domain.OrderStatusPaid})
+	service := usecase.NewOrderService(repo, newFakeCartRepo(), &fakeProductLookup{})
+
+	order, err := service.CancelAsAdmin(context.Background(), 1, "Rupture de stock")
+	if err != nil {
+		t.Fatalf("CancelAsAdmin() erreur inattendue : %v", err)
+	}
+	if order.Status != domain.OrderStatusCancelled {
+		t.Errorf("statut = %s, attendu cancelled", order.Status)
+	}
+	if order.CancelReason == nil || *order.CancelReason != "Rupture de stock" {
+		t.Errorf("raison = %v, attendu %q", order.CancelReason, "Rupture de stock")
+	}
+}
+
+func TestDelete(t *testing.T) {
+	t.Run("commande existante", func(t *testing.T) {
+		repo := newFakeOrderRepo(domain.Order{ID: 1, UserID: 10})
+		service := usecase.NewOrderService(repo, newFakeCartRepo(), &fakeProductLookup{})
+
+		if err := service.Delete(context.Background(), 1); err != nil {
+			t.Fatalf("Delete() erreur inattendue : %v", err)
+		}
+		if _, ok := repo.orders[1]; ok {
+			t.Error("la commande existe encore après Delete()")
+		}
+	})
+
+	t.Run("commande inexistante", func(t *testing.T) {
+		repo := newFakeOrderRepo()
+		service := usecase.NewOrderService(repo, newFakeCartRepo(), &fakeProductLookup{})
+
+		if err := service.Delete(context.Background(), 99); !errors.Is(err, domain.ErrNotFound) {
+			t.Errorf("Delete() = %v, attendu %v", err, domain.ErrNotFound)
+		}
+	})
 }
