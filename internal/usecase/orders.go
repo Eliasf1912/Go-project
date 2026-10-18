@@ -2,9 +2,12 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Eliasf1912/go-project/internal/domain"
+	"github.com/Eliasf1912/go-project/internal/ids"
 )
 
 // OrderRepository est le port implémenté par internal/adapter/postgres
@@ -17,14 +20,21 @@ type OrderRepository interface {
 	// autre requête l'a modifiée entre-temps. Réutilisé par Pay et, plus
 	// tard, par l'annulation.
 	UpdateStatus(ctx context.Context, id int, from, to domain.OrderStatus, cancelReason *string) error
+	// Create enregistre une commande "pending" issue d'un panier (elle et
+	// ses lignes), puis vide ce panier (order.CartID) — le tout dans une
+	// seule transaction côté base : soit tout est écrit, soit rien ne l'est.
+	// Renvoie la commande complète, avec les prix TTC calculés par la base.
+	Create(ctx context.Context, order domain.Order) (domain.Order, error)
 }
 
 type OrderService struct {
-	orders OrderRepository
+	orders   OrderRepository
+	carts    CartRepository
+	products ProductLookup
 }
 
-func NewOrderService(orders OrderRepository) *OrderService {
-	return &OrderService{orders: orders}
+func NewOrderService(orders OrderRepository, carts CartRepository, products ProductLookup) *OrderService {
+	return &OrderService{orders: orders, carts: carts, products: products}
 }
 
 // ListMine renvoie les commandes d'un utilisateur, les plus récentes en premier.
@@ -60,6 +70,37 @@ func (s *OrderService) Pay(ctx context.Context, userID, orderID int, card domain
 	}
 
 	return order, nil
+}
+
+// Checkout valide le panier de l'utilisateur : ses lignes deviennent une
+// commande "pending", puis le panier est vidé. Refuse un panier vide ou
+// absent (ErrCartEmpty), et refuse si l'un des produits a été archivé
+// depuis son ajout au panier (ErrCartHasInactiveProduct) : l'utilisateur
+// doit alors le retirer lui-même avant de réessayer.
+func (s *OrderService) Checkout(ctx context.Context, userID int) (domain.Order, error) {
+	cart, err := s.carts.FindByUserID(ctx, userID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.Order{}, domain.ErrCartEmpty
+	}
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	for _, item := range cart.Items {
+		if _, err := s.products.FindActiveByID(ctx, item.ProductID); err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return domain.Order{}, fmt.Errorf("%w : %s", domain.ErrCartHasInactiveProduct, item.ProductName)
+			}
+			return domain.Order{}, err
+		}
+	}
+
+	order, err := domain.NewOrderFromCart(cart, ids.NewOrderRef())
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	return s.orders.Create(ctx, order)
 }
 
 // Cancel annule une commande (statut "cancelled"), avec une raison
