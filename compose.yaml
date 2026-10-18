@@ -4,6 +4,7 @@ services:
       dockerfile: Dockerfile
       context: .
     user: go
+    command: go run ./cmd/server
     working_dir: /app
     tty: true
     stdin_open: true
@@ -17,6 +18,27 @@ services:
       - db
     environment:
       DATABASE_URL: ${DATABASE_URL}
+
+  ssh:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    user: go
+    command: go run ./cmd/ssh
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/app
+      - go_cache:/home/go/.cache
+      - go_mod:/go/pkg/mod
+    ports:
+      - "23234:23234"
+      - "23235:23235"
+    depends_on:
+      - go
+    environment:
+      API_URL: http://go:8080
 
   db:
     image: postgres:16
