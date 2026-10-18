@@ -7,7 +7,7 @@ import "net/http"
 // Pour ajouter une fonctionnalité : écrire ses handlers dans un fichier
 // dédié (auth.go, products.go...) puis enregistrer ses routes ici, avec
 // la méthode dans le motif ("GET /products", "POST /cart/items"...).
-func NewRouter(auth *AuthHandler, orders *OrderHandler, products *ProductHandler, carts *CartHandler, categories *CategoryHandler) http.Handler {
+func NewRouter(auth *AuthHandler, orders *OrderHandler, products *ProductHandler, carts *CartHandler, categories *CategoryHandler, users *UserHandler) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", handleHealth)
