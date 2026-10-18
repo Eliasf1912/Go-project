@@ -44,10 +44,10 @@ func (r *ProductRepository) Search(ctx context.Context, filter usecase.ProductFi
 	}
 
 	if filter.Name != "" {
-		addCondition("p.name ILIKE", "%"+filter.Name+"%")
+		addCondition("p.name ILIKE", "%"+escapeLikePattern(filter.Name)+"%")
 	}
 	if filter.Description != "" {
-		addCondition("p.description ILIKE", "%"+filter.Description+"%")
+		addCondition("p.description ILIKE", "%"+escapeLikePattern(filter.Description)+"%")
 	}
 	if filter.CategoryID != nil {
 		addCondition("p.category_id =", *filter.CategoryID)
@@ -95,4 +95,14 @@ func (r *ProductRepository) Search(ctx context.Context, filter usecase.ProductFi
 	}
 
 	return products, nil
+}
+
+// escapeLikePattern échappe les caractères spéciaux de LIKE/ILIKE (%, _ et le
+// caractère d'échappement \ lui-même) afin qu'une recherche comme "50%" ou
+// "produit_test" soit traitée comme du texte littéral et non comme un joker.
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "%", `\%`)
+	s = strings.ReplaceAll(s, "_", `\_`)
+	return s
 }
