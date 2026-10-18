@@ -40,16 +40,16 @@ const (
 )
 
 type Model struct {
-	api    *apiclient.Client
-	screen screen
-	menu   components.Menu
-	form   components.Form
-
-	email   string
-	user    dto.MeResponse
-	loading bool
-	err     string
-	info    string
+	api      *apiclient.Client
+	screen   screen
+	menu     components.Menu
+	form     components.Form
+	quitting bool
+	email    string
+	user     dto.MeResponse
+	loading  bool
+	err      string
+	info     string
 }
 
 func New(api *apiclient.Client) Model {
@@ -151,6 +151,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case logoutDoneMsg:
 		m.loading = false
+		if m.quitting {
+			return m, tea.Quit
+		}
 		// On oublie le jeton même si le serveur n'a pas répondu :
 		// la session expirera d'elle-même.
 		m.api = m.api.WithToken("")
@@ -230,7 +233,9 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, logoutCmd(m.api)
 	case mainQuit:
-		return m, tea.Quit
+		m.loading = true
+		m.quitting = true
+		return m, logoutCmd(m.api)
 	}
 	return m, nil
 }
