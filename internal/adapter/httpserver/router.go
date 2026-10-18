@@ -41,5 +41,13 @@ func NewRouter(auth *AuthHandler, orders *OrderHandler, products *ProductHandler
 	mux.HandleFunc("POST /orders/{id}/pay", auth.RequireAuth(orders.Pay))
 	mux.HandleFunc("POST /orders/{id}/cancel", auth.RequireAuth(orders.Cancel))
 
+	// Commandes (admin)
+	mux.HandleFunc("GET /admin/orders", auth.RequireAdmin(orders.AdminList))
+	mux.HandleFunc("POST /admin/orders", auth.RequireAdmin(orders.AdminCreate))
+	mux.HandleFunc("POST /admin/orders/{id}/ship", auth.RequireAdmin(orders.AdminShip))
+	mux.HandleFunc("POST /admin/orders/{id}/deliver", auth.RequireAdmin(orders.AdminDeliver))
+	mux.HandleFunc("POST /admin/orders/{id}/cancel", auth.RequireAdmin(orders.AdminCancel))
+	mux.HandleFunc("DELETE /admin/orders/{id}", auth.RequireAdmin(orders.AdminDelete))
+
 	return mux
 }

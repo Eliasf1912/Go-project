@@ -29,4 +29,7 @@ var (
 	ErrInvalidQuantity         = errors.New("la quantité doit être un entier positif")
 	ErrCartEmpty               = errors.New("le panier est vide")
 	ErrCartHasInactiveProduct  = errors.New("un produit du panier n'est plus disponible")
+	ErrOrderNotPaid            = errors.New("la commande n'est pas payée")
+	ErrOrderNotShipping        = errors.New("la commande n'est pas en cours de livraison")
+	ErrOrderHasNoItems         = errors.New("la commande doit contenir au moins un produit")
 )

@@ -34,6 +34,92 @@ func TestMarkAsPaid(t *testing.T) {
 	}
 }
 
+func TestMarkAsShipping(t *testing.T) {
+	tests := []struct {
+		from       OrderStatus
+		wantErr    error
+		wantStatus OrderStatus
+	}{
+		{OrderStatusPaid, nil, OrderStatusShipping},
+		{OrderStatusPending, ErrOrderNotPaid, OrderStatusPending},
+		{OrderStatusShipping, ErrOrderNotPaid, OrderStatusShipping},
+		{OrderStatusDelivered, ErrOrderNotPaid, OrderStatusDelivered},
+		{OrderStatusCancelled, ErrOrderNotPaid, OrderStatusCancelled},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.from), func(t *testing.T) {
+			order := Order{Status: tt.from}
+
+			err := order.MarkAsShipping()
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("MarkAsShipping() = %v, attendu %v", err, tt.wantErr)
+			}
+			if order.Status != tt.wantStatus {
+				t.Errorf("statut = %s, attendu %s", order.Status, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestMarkAsDelivered(t *testing.T) {
+	tests := []struct {
+		from       OrderStatus
+		wantErr    error
+		wantStatus OrderStatus
+	}{
+		{OrderStatusShipping, nil, OrderStatusDelivered},
+		{OrderStatusPending, ErrOrderNotShipping, OrderStatusPending},
+		{OrderStatusPaid, ErrOrderNotShipping, OrderStatusPaid},
+		{OrderStatusDelivered, ErrOrderNotShipping, OrderStatusDelivered},
+		{OrderStatusCancelled, ErrOrderNotShipping, OrderStatusCancelled},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.from), func(t *testing.T) {
+			order := Order{Status: tt.from}
+
+			err := order.MarkAsDelivered()
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("MarkAsDelivered() = %v, attendu %v", err, tt.wantErr)
+			}
+			if order.Status != tt.wantStatus {
+				t.Errorf("statut = %s, attendu %s", order.Status, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestNewOrderForUser(t *testing.T) {
+	t.Run("sans article", func(t *testing.T) {
+		_, err := NewOrderForUser(10, nil, "CMD-TEST00")
+		if !errors.Is(err, ErrOrderHasNoItems) {
+			t.Errorf("NewOrderForUser() = %v, attendu %v", err, ErrOrderHasNoItems)
+		}
+	})
+
+	t.Run("avec des articles", func(t *testing.T) {
+		items := []OrderItem{
+			{ProductID: 1, ProductName: "Clavier", Quantity: 2, PriceHT: 4999},
+		}
+
+		order, err := NewOrderForUser(10, items, "CMD-TEST00")
+		if err != nil {
+			t.Fatalf("NewOrderForUser() erreur inattendue : %v", err)
+		}
+		if order.UserID != 10 || order.Reference != "CMD-TEST00" || order.Status != OrderStatusPending {
+			t.Errorf("commande = %+v, champs de base inattendus", order)
+		}
+		// Pas de panier d'origine pour une commande créée par l'admin.
+		if order.CartID != nil {
+			t.Errorf("CartID = %v, attendu nil", order.CartID)
+		}
+		if len(order.Items) != 1 || order.Items[0].ProductID != 1 {
+			t.Errorf("articles = %+v, inattendus", order.Items)
+		}
+	})
+}
+
 func TestCancel(t *testing.T) {
 	tests := []struct {
 		name       string
