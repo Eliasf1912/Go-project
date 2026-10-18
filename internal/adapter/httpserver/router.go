@@ -15,6 +15,7 @@ func NewRouter(auth *AuthHandler, orders *OrderHandler) http.Handler {
 
 	// Commandes
 	mux.HandleFunc("GET /orders", auth.RequireAuth(orders.ListMine))
+	mux.HandleFunc("POST /orders/{id}/pay", auth.RequireAuth(orders.Pay))
 
 	return mux
 }
