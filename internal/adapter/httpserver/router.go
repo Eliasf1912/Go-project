@@ -2,12 +2,7 @@ package httpserver
 
 import "net/http"
 
-// NewRouter crée le routeur de l'API et enregistre toutes les routes.
-//
-// Pour ajouter une fonctionnalité : écrire ses handlers dans un fichier
-// dédié (auth.go, products.go...) puis enregistrer ses routes ici, avec
-// la méthode dans le motif ("GET /products", "POST /cart/items"...).
-func NewRouter(auth *AuthHandler) http.Handler {
+func NewRouter(auth *AuthHandler, orders *OrderHandler) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", handleHealth)
@@ -17,6 +12,9 @@ func NewRouter(auth *AuthHandler) http.Handler {
 	mux.HandleFunc("POST /auth/confirm", auth.Confirm)
 	mux.HandleFunc("POST /auth/login", auth.Login)
 	mux.HandleFunc("GET /auth/me", auth.RequireAuth(auth.Me))
+
+	// Commandes
+	mux.HandleFunc("GET /orders", auth.RequireAuth(orders.ListMine))
 
 	return mux
 }
