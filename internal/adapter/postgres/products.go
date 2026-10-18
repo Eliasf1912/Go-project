@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,8 +11,13 @@ import (
 	"github.com/Eliasf1912/go-project/internal/usecase"
 )
 
-// vérifie à la compilation que ProductRepository implémente bien l'interface
-var _ usecase.ProductRepository = (*ProductRepository)(nil)
+// vérifie à la compilation que ProductRepository implémente bien les
+// interfaces (ProductRepository pour la recherche, ProductLookup pour le
+// panier)
+var (
+	_ usecase.ProductRepository = (*ProductRepository)(nil)
+	_ usecase.ProductLookup     = (*ProductRepository)(nil)
+)
 
 type ProductRepository struct {
 	db *sql.DB
@@ -97,12 +103,35 @@ func (r *ProductRepository) Search(ctx context.Context, filter usecase.ProductFi
 	return products, nil
 }
 
-// escapeLikePattern échappe les caractères spéciaux de LIKE/ILIKE (%, _ et le
-// caractère d'échappement \ lui-même) afin qu'une recherche comme "50%" ou
-// "produit_test" soit traitée comme du texte littéral et non comme un joker.
-func escapeLikePattern(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, "%", `\%`)
-	s = strings.ReplaceAll(s, "_", `\_`)
-	return s
+// FindActiveByID renvoie un produit actif par son id, avec sa catégorie.
+// ErrNotFound s'il n'existe pas ou est archivé : dans les deux cas, il ne
+// peut pas être ajouté au panier.
+func (r *ProductRepository) FindActiveByID(ctx context.Context, id int) (domain.Product, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT p.id, p.reference, p.name, p.description, p.price_ht, p.price_ttc,
+		       p.active, p.created_at, p.updated_at,
+		       c.id, c.name, c.created_at
+		FROM products p
+		JOIN categories c ON c.id = p.category_id
+		WHERE p.id = $1 AND p.active`, id)
+
+	var (
+		product     domain.Product
+		description sql.NullString
+	)
+	err := row.Scan(
+		&product.ID, &product.Reference, &product.Name, &description,
+		&product.PriceHT, &product.PriceTTC, &product.Active,
+		&product.CreatedAt, &product.UpdatedAt,
+		&product.Category.ID, &product.Category.Name, &product.Category.CreatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Product{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Product{}, fmt.Errorf("recherche du produit %d : %w", id, err)
+	}
+	product.Description = description.String // "" si NULL
+
+	return product, nil
 }
