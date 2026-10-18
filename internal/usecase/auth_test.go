@@ -81,6 +81,11 @@ func (r *fakeSessionRepo) FindByToken(_ context.Context, token string) (domain.S
 	return s, nil
 }
 
+func (r *fakeSessionRepo) Delete(_ context.Context, token string) error {
+	delete(r.sessions, token)
+	return nil
+}
+
 // fakeHasher remplace bcrypt : instantané et prévisible.
 // On teste la logique du usecase ici, pas bcrypt.
 type fakeHasher struct{}
@@ -338,4 +343,26 @@ func TestAuthenticate(t *testing.T) {
 			t.Errorf("attendu ErrUnauthorized, obtenu %v", err)
 		}
 	})
+}
+
+func TestLogout(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv()
+	registerAndConfirm(t, env)
+	token, err := env.auth.Login(ctx, testEmail, testPassword)
+	if err != nil {
+		t.Fatalf("Login : %v", err)
+	}
+
+	if err := env.auth.Logout(ctx, token); err != nil {
+		t.Fatalf("Logout : erreur inattendue : %v", err)
+	}
+	if _, ok := env.sessions.sessions[token]; ok {
+		t.Error("la session devrait être supprimée")
+	}
+
+	_, err = env.auth.Authenticate(ctx, token)
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("le jeton ne devrait plus être accepté, obtenu %v", err)
+	}
 }

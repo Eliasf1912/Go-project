@@ -77,3 +77,18 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		Role:  string(user.Role),
 	})
 }
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	token, ok := TokenFromContext(r.Context())
+	if !ok {
+		writeDomainError(w, domain.ErrUnauthorized)
+		return
+	}
+
+	if err := h.auth.Logout(r.Context(), token); err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

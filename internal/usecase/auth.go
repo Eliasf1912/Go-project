@@ -20,6 +20,7 @@ type PasswordHasher interface {
 type SessionRepository interface {
 	Create(ctx context.Context, session domain.Session) error
 	FindByToken(ctx context.Context, token string) (domain.Session, error)
+	Delete(ctx context.Context, token string) error
 }
 type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (domain.User, error)
@@ -223,4 +224,11 @@ func (s *AuthService) Authenticate(ctx context.Context, token string) (domain.Us
 	}
 
 	return user, nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, token string) error {
+	if err := s.sessions.Delete(ctx, token); err != nil {
+		return fmt.Errorf("suppression de la session : %w", err)
+	}
+	return nil
 }

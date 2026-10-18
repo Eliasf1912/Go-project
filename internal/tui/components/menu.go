@@ -1,4 +1,4 @@
-package client
+package components
 
 import (
 	"strings"
@@ -6,16 +6,16 @@ import (
 	"github.com/Eliasf1912/go-project/internal/tui/styles"
 )
 
-type menu struct {
+type Menu struct {
 	items  []string
 	cursor int
 }
 
-func newMenu(items ...string) menu {
-	return menu{items: items}
+func NewMenu(items ...string) Menu {
+	return Menu{items: items}
 }
 
-func (m *menu) update(key string) (int, bool) {
+func (m *Menu) Update(key string) (int, bool) {
 	switch key {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -31,7 +31,7 @@ func (m *menu) update(key string) (int, bool) {
 	return 0, false
 }
 
-func (m menu) view() string {
+func (m Menu) View() string {
 	var b strings.Builder
 	for i, item := range m.items {
 		if i == m.cursor {

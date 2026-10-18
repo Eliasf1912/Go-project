@@ -31,3 +31,7 @@ func (c *Client) Me(ctx context.Context) (dto.MeResponse, error) {
 	err := c.do(ctx, http.MethodGet, "/auth/me", nil, &resp)
 	return resp, err
 }
+
+func (c *Client) Logout(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/auth/logout", nil, nil)
+}

@@ -12,7 +12,10 @@ import (
 // utiliser par erreur la même clé dans le context.
 type contextKey string
 
-const userKey contextKey = "user"
+const (
+	userKey  contextKey = "user"
+	tokenKey contextKey = "token"
+)
 
 // RequireAuth laisse passer la requête seulement si elle porte un jeton de session valide.
 func (h *AuthHandler) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -30,6 +33,7 @@ func (h *AuthHandler) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		ctx := context.WithValue(r.Context(), userKey, user)
+		ctx = context.WithValue(ctx, tokenKey, token)
 		next(w, r.WithContext(ctx))
 	}
 }
@@ -38,4 +42,10 @@ func (h *AuthHandler) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 func UserFromContext(ctx context.Context) (domain.User, bool) {
 	user, ok := ctx.Value(userKey).(domain.User)
 	return user, ok
+}
+
+// TokenFromContext renvoie le jeton de session vérifié par RequireAuth.
+func TokenFromContext(ctx context.Context) (string, bool) {
+	token, ok := ctx.Value(tokenKey).(string)
+	return token, ok
 }

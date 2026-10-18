@@ -13,6 +13,7 @@ type registerDoneMsg struct{ err error }
 
 type confirmDoneMsg struct{ err error }
 
+type logoutDoneMsg struct{ err error }
 type loginDoneMsg struct {
 	api  *apiclient.Client
 	user dto.MeResponse
@@ -47,5 +48,12 @@ func loginCmd(api *apiclient.Client, email, password string) tea.Cmd {
 			return loginDoneMsg{err: err}
 		}
 		return loginDoneMsg{api: authed, user: user}
+	}
+}
+
+func logoutCmd(api *apiclient.Client) tea.Cmd {
+	return func() tea.Msg {
+		err := api.Logout(context.Background())
+		return logoutDoneMsg{err: err}
 	}
 }
