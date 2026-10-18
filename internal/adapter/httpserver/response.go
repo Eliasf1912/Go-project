@@ -31,13 +31,25 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrPasswordTooShort),
 		errors.Is(err, domain.ErrInvalidCode),
 		errors.Is(err, domain.ErrCodeExpired),
-		errors.Is(err, domain.ErrAccountAlreadyConfirmed):
+		errors.Is(err, domain.ErrAccountAlreadyConfirmed),
+		errors.Is(err, domain.ErrInvalidCardNumber),
+		errors.Is(err, domain.ErrInvalidCardExpiry),
+		errors.Is(err, domain.ErrCardExpired),
+		errors.Is(err, domain.ErrInvalidCVC),
+		errors.Is(err, domain.ErrCancelReasonRequired),
+		errors.Is(err, domain.ErrInvalidPriceRange),
+		errors.Is(err, domain.ErrInvalidQuantity):
 		writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, domain.ErrEmailTaken):
+	case errors.Is(err, domain.ErrEmailTaken),
+		errors.Is(err, domain.ErrOrderNotPending),
+		errors.Is(err, domain.ErrOrderStatusChanged),
+		errors.Is(err, domain.ErrOrderNotCancellable):
 		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, domain.ErrInvalidCredentials),
 		errors.Is(err, domain.ErrUnauthorized):
 		writeError(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, domain.ErrAccountNotConfirmed):
 		writeError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, domain.ErrInvalidCategoryName):

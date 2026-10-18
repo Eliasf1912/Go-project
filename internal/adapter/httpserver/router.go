@@ -7,7 +7,7 @@ import "net/http"
 // Pour ajouter une fonctionnalité : écrire ses handlers dans un fichier
 // dédié (auth.go, products.go...) puis enregistrer ses routes ici, avec
 // la méthode dans le motif ("GET /products", "POST /cart/items"...).
-func NewRouter(auth *AuthHandler, categories *CategoryHandler, users *UserHandler) http.Handler {
+func NewRouter(auth *AuthHandler, orders *OrderHandler, products *ProductHandler, carts *CartHandler, categories *CategoryHandler) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", handleHealth)
@@ -29,6 +29,19 @@ func NewRouter(auth *AuthHandler, categories *CategoryHandler, users *UserHandle
 	// Utilisateurs (admin)
 	mux.HandleFunc("GET /admin/users", auth.RequireAdmin(users.List))
 	mux.HandleFunc("DELETE /admin/users/{id}", auth.RequireAdmin(users.Delete))
+	// Produits
+	mux.HandleFunc("GET /products", auth.RequireAuth(products.Search))
+
+	// Panier
+	mux.HandleFunc("GET /cart", auth.RequireAuth(carts.GetMine))
+	mux.HandleFunc("POST /cart/items", auth.RequireAuth(carts.AddItem))
+	mux.HandleFunc("PUT /cart/items/{productID}", auth.RequireAuth(carts.UpdateItem))
+	mux.HandleFunc("DELETE /cart/items/{productID}", auth.RequireAuth(carts.RemoveItem))
+
+	// Commandes
+	mux.HandleFunc("GET /orders", auth.RequireAuth(orders.ListMine))
+	mux.HandleFunc("POST /orders/{id}/pay", auth.RequireAuth(orders.Pay))
+	mux.HandleFunc("POST /orders/{id}/cancel", auth.RequireAuth(orders.Cancel))
 
 	return mux
 }

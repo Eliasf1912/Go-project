@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// nullTimeToPtr convertit une date SQL pouvant être NULL en pointeur Go (nil si NULL).
 func nullTimeToPtr(t sql.NullTime) *time.Time {
 	if !t.Valid {
 		return nil
@@ -13,7 +12,20 @@ func nullTimeToPtr(t sql.NullTime) *time.Time {
 	return &t.Time
 }
 
-// stringToNull convertit une chaîne vide en NULL SQL.
 func stringToNull(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
+}
+
+func nullStringToPtr(s sql.NullString) *string {
+	if !s.Valid {
+		return nil
+	}
+	return &s.String
+}
+
+func stringPtrToNull(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *s, Valid: true}
 }
