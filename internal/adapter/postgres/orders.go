@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/Eliasf1912/go-project/internal/domain"
@@ -66,6 +67,65 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID int) ([]domai
 	}
 
 	return orders, nil
+}
+
+// FindByID renvoie une commande (avec ses lignes) par son id.
+func (r *OrderRepository) FindByID(ctx context.Context, id int) (domain.Order, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, reference, user_id, cart_id, status, cancel_reason, created_at, updated_at
+		FROM orders
+		WHERE id = $1`, id)
+
+	var (
+		order        domain.Order
+		cartID       sql.NullInt64
+		cancelReason sql.NullString
+	)
+	err := row.Scan(
+		&order.ID, &order.Reference, &order.UserID, &cartID,
+		&order.Status, &cancelReason, &order.CreatedAt, &order.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Order{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.Order{}, fmt.Errorf("recherche de la commande %d : %w", id, err)
+	}
+	if cartID.Valid {
+		cartIDValue := int(cartID.Int64)
+		order.CartID = &cartIDValue
+	}
+	order.CancelReason = nullStringToPtr(cancelReason)
+
+	items, err := r.listItems(ctx, order.ID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+	order.Items = items
+
+	return order, nil
+}
+
+// UpdateStatus fait passer une commande du statut from au statut to et, si
+// fournie, enregistre sa raison d'annulation. La condition "status = from"
+// est vérifiée par la base dans la même requête : si deux requêtes arrivent
+// en même temps, une seule peut réussir.
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id int, from, to domain.OrderStatus, cancelReason *string) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE orders SET status = $1, cancel_reason = $2, updated_at = now()
+		WHERE id = $3 AND status = $4`, to, stringPtrToNull(cancelReason), id, from)
+	if err != nil {
+		return fmt.Errorf("mise à jour de la commande %d : %w", id, err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("mise à jour de la commande %d : %w", id, err)
+	}
+	if rows == 0 {
+		return domain.ErrOrderStatusChanged
+	}
+	return nil
 }
 
 // listItems renvoie les lignes d'une commande (table order_items)
