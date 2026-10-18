@@ -52,6 +52,7 @@ func main() {
 	productHandler := httpserver.NewProductHandler(productService)
 	cartHandler := httpserver.NewCartHandler(cartService)
 	categoryHandler := httpserver.NewCategoryHandler(categoryService)
+	userHandler := httpserver.NewUserHandler(userService)
 
 	srv := &http.Server{
 		Addr:              *addr,
