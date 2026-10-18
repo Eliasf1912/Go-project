@@ -17,3 +17,11 @@ func nullTimeToPtr(t sql.NullTime) *time.Time {
 func stringToNull(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
 }
+
+// nullStringToPtr convertit une chaîne SQL pouvant être NULL en pointeur Go (nil si NULL).
+func nullStringToPtr(s sql.NullString) *string {
+	if !s.Valid {
+		return nil
+	}
+	return &s.String
+}
