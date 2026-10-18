@@ -50,11 +50,11 @@ const (
 type orderActionKind int
 
 const (
-	orderActionShip orderActionKind = iota
-	orderActionDeliver
-	orderActionCancel
-	orderActionDelete
-	orderActionBack
+	actionShip orderActionKind = iota
+	actionDeliver
+	actionCancel
+	actionDelete
+	actionBack
 )
 
 type orderAction struct {
@@ -81,12 +81,10 @@ type Model struct {
 	err      string
 	info     string
 
-	categories []dto.CategoryResponse
-	selected   dto.CategoryResponse // catégorie choisie (ID 0 : nouvelle)
-
-	users        []dto.UserResponse
-	selectedUser dto.UserResponse
-
+	categories    []dto.CategoryResponse
+	selected      dto.CategoryResponse // catégorie choisie (ID 0 : nouvelle)
+	users         []dto.UserResponse
+	selectedUser  dto.UserResponse
 	orders        []dto.OrderResponse
 	selectedOrder dto.OrderResponse
 	orderActions  []orderAction
@@ -144,16 +142,16 @@ func (m *Model) goOrderActions(order dto.OrderResponse) {
 	m.orderActions = nil
 	switch order.Status {
 	case "paid":
-		m.orderActions = append(m.orderActions, orderAction{orderActionShip, "Expédier"})
+		m.orderActions = append(m.orderActions, orderAction{actionShip, "Expédier"})
 	case "shipping":
-		m.orderActions = append(m.orderActions, orderAction{orderActionDeliver, "Livrer"})
+		m.orderActions = append(m.orderActions, orderAction{actionDeliver, "Livrer"})
 	}
 	if order.Status == "pending" || order.Status == "paid" {
-		m.orderActions = append(m.orderActions, orderAction{orderActionCancel, "Annuler"})
+		m.orderActions = append(m.orderActions, orderAction{actionCancel, "Annuler"})
 	}
 	m.orderActions = append(m.orderActions,
-		orderAction{orderActionDelete, "Supprimer"},
-		orderAction{orderActionBack, "Retour"},
+		orderAction{actionDelete, "Supprimer"},
+		orderAction{actionBack, "Retour"},
 	)
 
 	labels := make([]string, len(m.orderActions))
@@ -206,11 +204,12 @@ func (m *Model) goBack() {
 		m.goOrders(m.orders, "")
 	case screenOrders, screenCategories, screenUsers:
 		m.goMain()
-	case screenUserActions:
-		m.goUsers()
 	case screenCategoryActions, screenCategoryForm:
 		m.goCategories()
+	case screenUserActions:
+		m.goUsers()
 	}
+	m.err, m.info = "", ""
 }
 
 // replaceOrder met à jour une commande dans la liste déjà chargée (après
@@ -445,6 +444,7 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mainProducts:
 		m.info = "Bientôt disponible."
 	case mainOrders:
+		m.err, m.info = "", ""
 		m.loading = true
 		return m, loadOrdersCmd(m.api, "")
 	case mainLogout:
@@ -488,17 +488,17 @@ func (m Model) updateOrderActions(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch m.orderActions[choice].kind {
-	case orderActionShip:
+	case actionShip:
 		m.loading = true
 		return m, shipCmd(m.api, m.selectedOrder.ID)
-	case orderActionDeliver:
+	case actionDeliver:
 		m.loading = true
 		return m, deliverCmd(m.api, m.selectedOrder.ID)
-	case orderActionCancel:
+	case actionCancel:
 		m.goCancelOrder()
-	case orderActionDelete:
+	case actionDelete:
 		m.goDeleteConfirm()
-	case orderActionBack:
+	case actionBack:
 		m.goOrders(m.orders, "")
 	}
 	return m, nil
@@ -569,12 +569,15 @@ func (m Model) View() tea.View {
 	b.WriteString("\n")
 
 	switch m.screen {
-	case screenLogin, screenCategoryForm, screenCreateOrder, screenCancelOrder:
+	case screenLogin, screenCategoryForm:
 		b.WriteString(m.form.View())
+	case screenMain, screenOrders, screenDeleteConfirm,
+		screenCategories, screenCategoryActions, screenUsers, screenUserActions:
+		b.WriteString(m.menu.View())
 	case screenOrderActions:
 		b.WriteString(m.viewOrderActions())
-	default:
-		b.WriteString(m.menu.View())
+	default: // screenCreateOrder, screenCancelOrder
+		b.WriteString(m.form.View())
 	}
 
 	b.WriteString("\n")
@@ -597,6 +600,36 @@ func (m Model) View() tea.View {
 	return v
 }
 
+func (m Model) title() string {
+	switch m.screen {
+	case screenCategories:
+		return "Catégories"
+	case screenCategoryActions:
+		return "Catégorie : " + m.selected.Name
+	case screenCategoryForm:
+		if m.selected.ID == 0 {
+			return "Nouvelle catégorie"
+		}
+		return "Renommer : " + m.selected.Name
+	case screenUsers:
+		return "Utilisateurs"
+	case screenUserActions:
+		return "Utilisateur : " + m.selectedUser.Email
+	case screenOrders:
+		return "Commandes"
+	case screenOrderActions:
+		return m.selectedOrder.Reference
+	case screenCreateOrder:
+		return "Créer une commande"
+	case screenCancelOrder:
+		return "Annuler la commande"
+	case screenDeleteConfirm:
+		return "Supprimer " + m.selectedOrder.Reference + " ?"
+	default:
+		return appName
+	}
+}
+
 // viewOrderActions affiche le détail d'une commande (lignes, raison
 // d'annulation éventuelle) avant le menu de ses actions possibles.
 func (m Model) viewOrderActions() string {
@@ -616,46 +649,14 @@ func (m Model) viewOrderActions() string {
 	return b.String()
 }
 
-func (m Model) title() string {
-	switch m.screen {
-	case screenOrders:
-		return "Commandes"
-	case screenOrderActions:
-		return m.selectedOrder.Reference
-	case screenCreateOrder:
-		return "Créer une commande"
-	case screenCancelOrder:
-		return "Annuler la commande"
-	case screenDeleteConfirm:
-		return "Supprimer " + m.selectedOrder.Reference + " ?"
-	case screenCategories:
-		return "Catégories"
-	case screenUsers:
-		return "Utilisateurs"
-	case screenUserActions:
-		return "Utilisateur : " + m.selectedUser.Email
-	case screenCategoryActions:
-		return "Catégorie : " + m.selected.Name
-	case screenCategoryForm:
-		if m.selected.ID == 0 {
-			return "Nouvelle catégorie"
-		}
-		return "Renommer : " + m.selected.Name
-	default:
-		return appName
-	}
-}
-
 func (m Model) help() string {
 	switch m.screen {
 	case screenLogin:
 		return "Tab : champ suivant • Entrée : valider • Ctrl+C : quitter"
-	case screenCategoryForm:
-		return "Entrée : valider • Échap : retour • Ctrl+C : quitter"
-	case screenCreateOrder, screenCancelOrder:
-		return "Tab : champ suivant • Entrée : valider • Échap : retour • Ctrl+C : quitter"
 	case screenMain:
 		return "↑/↓ : choisir • Entrée : valider • Ctrl+C : quitter"
+	case screenCategoryForm, screenCreateOrder, screenCancelOrder:
+		return "Tab : champ suivant • Entrée : valider • Échap : retour • Ctrl+C : quitter"
 	default:
 		return "↑/↓ : choisir • Entrée : valider • Échap : retour • Ctrl+C : quitter"
 	}

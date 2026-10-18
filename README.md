@@ -360,4 +360,4 @@ Avec le terminal PowerShell ou cmd, l'affichage peut être dégradé (couleurs, 
 
 ## Limites connues
 
-- Les échanges entre les CLI et le serveur sont en HTTP ; en production, il faudrait passer en HTTPS.
+- Les échanges entre les CLI et le serveur sont en HTTP ; en production, il faudrait passer en HTTPS.go mod tidy

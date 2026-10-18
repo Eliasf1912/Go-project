@@ -63,9 +63,9 @@ func (m *Model) goCategories() {
 
 // Même ordre que dans goCategoryActions.
 const (
-	actionRename = iota
-	actionDelete
-	actionBack
+	categoryActionRename = iota
+	categoryActionDelete
+	categoryActionBack
 )
 
 func (m *Model) goCategoryActions() {
@@ -117,12 +117,12 @@ func (m Model) updateCategoryActions(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch choice {
-	case actionRename:
+	case categoryActionRename:
 		m.goCategoryForm()
-	case actionDelete:
+	case categoryActionDelete:
 		m.loading = true
 		return m, deleteCategoryCmd(m.api, m.selected.ID)
-	case actionBack:
+	case categoryActionBack:
 		m.goCategories()
 	}
 	return m, nil
