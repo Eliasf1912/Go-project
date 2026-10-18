@@ -239,8 +239,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loading {
 			return m, nil // on ignore les touches pendant une requête
 		}
-		if msg.String() == "esc" {
-			return m.back()
 		if msg.String() == "esc" && m.screen != screenLogin && m.screen != screenMain {
 			m.goBack()
 			return m, nil

@@ -393,8 +393,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case screenHome:
 		return m.updateHome(msg)
-	case screenRegister, screenConfirm, screenLogin, screenForgot, screenReset:
-	case screenRegister, screenConfirm, screenLogin, screenPay, screenCancel:
+	case screenRegister, screenConfirm, screenLogin, screenForgot, screenReset, screenPay, screenCancel:
 		return m.updateForm(msg)
 	case screenMain:
 		return m.updateMain(msg)
