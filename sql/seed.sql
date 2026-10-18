@@ -58,3 +58,17 @@ INSERT INTO categories (name) VALUES
     ('jouets'),
     ('beauté'),
     ('alimentation');
+
+-- ------------------------------------------------------------
+-- Produits de test (pour GET /products)
+-- ------------------------------------------------------------
+-- price_ht en centimes ; price_ttc est calculé par la base
+-- (colonne générée, TVA fixe 20 %)
+
+INSERT INTO products (reference, name, description, price_ht, category_id) VALUES
+    ('PDT-A1B2C3', 'Clavier mécanique', 'Switches rouges, rétroéclairage RGB', 4999, (SELECT id FROM categories WHERE name = 'informatique')),
+    ('PDT-D4E5F6', 'Souris sans fil', NULL, 1999, (SELECT id FROM categories WHERE name = 'informatique')),
+    ('PDT-G7H8I9', 'Roman policier', 'Un thriller haletant', 833, (SELECT id FROM categories WHERE name = 'livres')),
+    ('PDT-J1K2L3', 'T-shirt coton bio', NULL, 1500, (SELECT id FROM categories WHERE name = 'vêtements')),
+    ('PDT-M4N5O6', 'Ballon de football', 'Taille 5, cuir synthétique', 2500, (SELECT id FROM categories WHERE name = 'sport')),
+    ('PDT-P7Q8R9', 'Jeu de société', 'Pour 2 à 6 joueurs, dès 8 ans', 3333, (SELECT id FROM categories WHERE name = 'jouets'));
