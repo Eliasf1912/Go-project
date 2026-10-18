@@ -8,6 +8,7 @@ import (
 
 	"github.com/Eliasf1912/go-project/internal/domain"
 	"github.com/Eliasf1912/go-project/internal/usecase"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // vérifie à la compilation que OrderRepository implémente bien l'interface
@@ -196,6 +197,9 @@ func (r *OrderRepository) Create(ctx context.Context, order domain.Order) (domai
 		RETURNING id, created_at, updated_at`,
 		order.Reference, order.UserID, intPtrToNull(order.CartID), order.Status)
 	if err := row.Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt); err != nil {
+		if isForeignKeyViolation(err) {
+			return domain.Order{}, domain.ErrNotFound // client inexistant
+		}
 		return domain.Order{}, fmt.Errorf("création de la commande : %w", err)
 	}
 
@@ -206,6 +210,9 @@ func (r *OrderRepository) Create(ctx context.Context, order domain.Order) (domai
 			RETURNING id, price_ttc`,
 			order.ID, item.ProductID, item.ProductName, item.Quantity, item.PriceHT)
 		if err := row.Scan(&item.ID, &item.PriceTTC); err != nil {
+			if isForeignKeyViolation(err) {
+				return domain.Order{}, domain.ErrNotFound // produit supprimé entre-temps
+			}
 			return domain.Order{}, fmt.Errorf("création d'une ligne de la commande : %w", err)
 		}
 		order.Items[i] = item
@@ -246,4 +253,12 @@ func (r *OrderRepository) listItems(ctx context.Context, orderID int) ([]domain.
 	}
 
 	return items, nil
+}
+
+// isForeignKeyViolation indique si PostgreSQL a refusé l'écriture parce
+// qu'elle référence une ligne qui n'existe pas (code 23503), par exemple
+// une commande pour un client inexistant.
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }
