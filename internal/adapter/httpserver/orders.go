@@ -118,6 +118,7 @@ func toOrderResponse(order domain.Order) dto.OrderResponse {
 		Reference:    order.Reference,
 		Status:       string(order.Status),
 		CancelReason: order.CancelReason,
+		TotalTTC:     order.TotalTTC(),
 		CreatedAt:    order.CreatedAt,
 		Items:        items,
 	}
