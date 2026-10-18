@@ -22,4 +22,6 @@ var (
 	ErrInvalidCVC              = errors.New("le CVC doit contenir 3 chiffres")
 	ErrOrderNotCancellable     = errors.New("la commande ne peut plus être annulée")
 	ErrCancelReasonRequired    = errors.New("la raison de l'annulation est obligatoire")
+	ErrInvalidPriceRange       = errors.New("le prix minimum doit être inférieur ou égal au prix maximum")
+	ErrInvalidQuantity         = errors.New("la quantité doit être un entier positif")
 )
