@@ -61,3 +61,28 @@ func (s *OrderService) Pay(ctx context.Context, userID, orderID int, card domain
 
 	return order, nil
 }
+
+// Cancel annule une commande (statut "cancelled"), avec une raison
+// obligatoire. userID doit être le propriétaire de la commande, comme
+// pour Pay.
+func (s *OrderService) Cancel(ctx context.Context, userID, orderID int, reason string) (domain.Order, error) {
+	order, err := s.orders.FindByID(ctx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	if order.UserID != userID {
+		return domain.Order{}, domain.ErrNotFound
+	}
+
+	from := order.Status
+	if err := order.Cancel(reason); err != nil {
+		return domain.Order{}, err
+	}
+
+	if err := s.orders.UpdateStatus(ctx, order.ID, from, order.Status, order.CancelReason); err != nil {
+		return domain.Order{}, err
+	}
+
+	return order, nil
+}

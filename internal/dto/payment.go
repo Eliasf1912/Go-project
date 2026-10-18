@@ -5,3 +5,7 @@ type PayRequest struct {
 	Expiry     string `json:"expiry"`
 	CVC        string `json:"cvc"`
 }
+
+type CancelRequest struct {
+	Reason string `json:"reason"`
+}
