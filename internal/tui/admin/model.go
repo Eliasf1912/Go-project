@@ -18,8 +18,12 @@ type screen int
 const (
 	screenLogin screen = iota
 	screenMain
+	screenCategories
+	screenCategoryActions
+	screenCategoryForm
 )
 
+// Même ordre que dans goMain.
 const (
 	mainCategories = iota
 	mainUsers
@@ -41,6 +45,9 @@ type Model struct {
 	quitting bool
 	err      string
 	info     string
+
+	categories []dto.CategoryResponse
+	selected   dto.CategoryResponse // catégorie choisie (ID 0 : nouvelle)
 }
 
 func New(api *apiclient.Client) Model {
@@ -77,6 +84,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loading {
 			return m, nil // on ignore les touches pendant une requête
 		}
+		if msg.String() == "esc" {
+			return m.back()
+		}
 
 	case loginDoneMsg:
 		m.loading = false
@@ -88,6 +98,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.user = msg.user
 		m.goMain()
 		return m, nil
+
+	case categoriesLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.categories = msg.categories
+		m.goCategories()
+		return m, nil
+
+	case categoryChangedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		// On recharge la liste depuis le serveur pour afficher l'état réel.
+		m.info = msg.info
+		m.loading = true
+		return m, loadCategoriesCmd(m.api)
 
 	case logoutDoneMsg:
 		m.loading = false
@@ -108,6 +139,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateLogin(msg)
 	case screenMain:
 		return m.updateMain(msg)
+	case screenCategories:
+		return m.updateCategories(msg)
+	case screenCategoryActions:
+		return m.updateCategoryActions(msg)
+	case screenCategoryForm:
+		return m.updateCategoryForm(msg)
 	}
 	return m, nil
 }
@@ -135,7 +172,11 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch choice {
-	case mainCategories, mainUsers, mainProducts, mainOrders:
+	case mainCategories:
+		m.err, m.info = "", ""
+		m.loading = true
+		return m, loadCategoriesCmd(m.api)
+	case mainUsers, mainProducts, mainOrders:
 		m.info = "Bientôt disponible."
 	case mainLogout:
 		m.loading = true
@@ -151,18 +192,18 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() tea.View {
 	var b strings.Builder
 
-	b.WriteString(styles.Title.Render(appName))
+	b.WriteString(styles.Title.Render(m.title()))
 	b.WriteString("\n")
-	if m.screen == screenMain {
+	if m.screen != screenLogin {
 		b.WriteString(styles.Help.Render("Connecté : " + m.user.Email))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
 
 	switch m.screen {
-	case screenLogin:
+	case screenLogin, screenCategoryForm:
 		b.WriteString(m.form.View())
-	case screenMain:
+	default:
 		b.WriteString(m.menu.View())
 	}
 
@@ -186,9 +227,43 @@ func (m Model) View() tea.View {
 	return v
 }
 
-func (m Model) help() string {
-	if m.screen == screenLogin {
-		return "Tab : champ suivant • Entrée : valider • Ctrl+C : quitter"
+func (m Model) title() string {
+	switch m.screen {
+	case screenCategories:
+		return "Catégories"
+	case screenCategoryActions:
+		return "Catégorie : " + m.selected.Name
+	case screenCategoryForm:
+		if m.selected.ID == 0 {
+			return "Nouvelle catégorie"
+		}
+		return "Renommer : " + m.selected.Name
+	default:
+		return appName
 	}
-	return "↑/↓ : choisir • Entrée : valider • Ctrl+C : quitter"
+}
+
+func (m Model) help() string {
+	switch m.screen {
+	case screenLogin:
+		return "Tab : champ suivant • Entrée : valider • Ctrl+C : quitter"
+	case screenCategoryForm:
+		return "Entrée : valider • Échap : retour • Ctrl+C : quitter"
+	case screenMain:
+		return "↑/↓ : choisir • Entrée : valider • Ctrl+C : quitter"
+	default:
+		return "↑/↓ : choisir • Entrée : valider • Échap : retour • Ctrl+C : quitter"
+	}
+}
+
+// back gère la touche Échap : on remonte d'un écran.
+func (m Model) back() (tea.Model, tea.Cmd) {
+	m.err, m.info = "", ""
+	switch m.screen {
+	case screenCategories:
+		m.goMain()
+	case screenCategoryActions, screenCategoryForm:
+		m.goCategories()
+	}
+	return m, nil
 }
