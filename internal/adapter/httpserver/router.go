@@ -14,7 +14,7 @@ func NewRouter(auth *AuthHandler, orders *OrderHandler, products *ProductHandler
 	mux.HandleFunc("GET /auth/me", auth.RequireAuth(auth.Me))
 
 	// Produits
-	mux.HandleFunc("GET /products", auth.RequireAuth(products.List))
+	mux.HandleFunc("GET /products", auth.RequireAuth(products.Search))
 
 	// Commandes
 	mux.HandleFunc("GET /orders", auth.RequireAuth(orders.ListMine))
