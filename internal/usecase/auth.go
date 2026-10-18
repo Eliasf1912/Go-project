@@ -21,6 +21,7 @@ type SessionRepository interface {
 	Create(ctx context.Context, session domain.Session) error
 	FindByToken(ctx context.Context, token string) (domain.Session, error)
 	Delete(ctx context.Context, token string) error
+	DeleteByUser(ctx context.Context, userID int) error
 }
 type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (domain.User, error)
@@ -229,6 +230,74 @@ func (s *AuthService) Authenticate(ctx context.Context, token string) (domain.Us
 func (s *AuthService) Logout(ctx context.Context, token string) error {
 	if err := s.sessions.Delete(ctx, token); err != nil {
 		return fmt.Errorf("suppression de la session : %w", err)
+	}
+	return nil
+}
+
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	email, err := domain.NormalizeEmail(email)
+	if err != nil {
+		return nil // même réponse que pour un email inconnu
+	}
+
+	user, err := s.users.FindByEmail(ctx, email)
+	if errors.Is(err, domain.ErrNotFound) {
+		return nil // on ne révèle pas que l'email n'existe pas
+	}
+	if err != nil {
+		return fmt.Errorf("recherche de l'utilisateur : %w", err)
+	}
+
+	code, err := generateCode()
+	if err != nil {
+		return fmt.Errorf("génération du code : %w", err)
+	}
+	expiresAt := time.Now().Add(15 * time.Minute)
+	user.PasswordResetCode = code
+	user.PasswordResetExpiresAt = &expiresAt
+
+	if err := s.users.Update(ctx, user); err != nil {
+		return fmt.Errorf("enregistrement du code : %w", err)
+	}
+	log.Printf("code de réinitialisation pour %s : %s", user.Email, code)
+	return nil
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, email, code, newPassword string) error {
+	if err := domain.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+	email, err := domain.NormalizeEmail(email)
+	if err != nil {
+		return domain.ErrInvalidCode
+	}
+
+	user, err := s.users.FindByEmail(ctx, email)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.ErrInvalidCode
+	}
+	if err != nil {
+		return fmt.Errorf("recherche de l'utilisateur : %w", err)
+	}
+
+	if err := user.CheckResetCode(code, time.Now()); err != nil {
+		return err
+	}
+
+	hash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return fmt.Errorf("hachage du mot de passe : %w", err)
+	}
+	user.PasswordHash = hash
+	user.PasswordResetCode = ""
+	user.PasswordResetExpiresAt = nil
+
+	if err := s.users.Update(ctx, user); err != nil {
+		return fmt.Errorf("mise à jour du mot de passe : %w", err)
+	}
+	// Déconnexion partout : un voleur éventuel perd sa session.
+	if err := s.sessions.DeleteByUser(ctx, user.ID); err != nil {
+		return fmt.Errorf("suppression des sessions : %w", err)
 	}
 	return nil
 }
