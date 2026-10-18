@@ -550,7 +550,7 @@ func (m Model) View() tea.View {
 
 	b.WriteString(styles.Title.Render(m.title()))
 	b.WriteString("\n")
-	if m.screen != screenHome && m.screen != screenRegister && m.screen != screenConfirm && m.screen != screenLogin {
+	if m.screen != screenHome && m.screen != screenRegister && m.screen != screenConfirm && m.screen != screenLogin && m.screen != screenForgot && m.screen != screenReset {
 		b.WriteString(styles.Help.Render("Connecté : " + m.user.Email))
 		b.WriteString("\n")
 	}
