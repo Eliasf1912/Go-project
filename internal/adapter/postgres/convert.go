@@ -29,3 +29,10 @@ func stringPtrToNull(s *string) sql.NullString {
 	}
 	return sql.NullString{String: *s, Valid: true}
 }
+
+func intPtrToNull(i *int) sql.NullInt64 {
+	if i == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(*i), Valid: true}
+}

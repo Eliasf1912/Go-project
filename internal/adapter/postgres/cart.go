@@ -50,25 +50,17 @@ func (r *CartRepository) FindByUserID(ctx context.Context, userID int) (domain.C
 }
 
 // Create crée le panier de l'utilisateur, avec une référence générée
-// (BSK-XXXXXX). carts.user_id est UNIQUE en base : si deux requêtes tentent
-// de créer le panier en même temps, ON CONFLICT DO NOTHING fait perdre la
-// course à l'une des deux sans erreur ; on relit alors le panier créé par
-// l'autre requête.
+// (BSK-XXXXXX). N'est appelé qu'une fois par utilisateur : carts.user_id
+// est UNIQUE en base.
 func (r *CartRepository) Create(ctx context.Context, userID int) (domain.Cart, error) {
 	row := r.db.QueryRowContext(ctx, `
 		INSERT INTO carts (reference, user_id)
 		VALUES ($1, $2)
-		ON CONFLICT (user_id) DO NOTHING
 		RETURNING id, reference, user_id, created_at, updated_at`,
 		ids.NewCartRef(), userID)
 
 	var cart domain.Cart
-	err := row.Scan(&cart.ID, &cart.Reference, &cart.UserID, &cart.CreatedAt, &cart.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		// une autre requête a créé le panier entre-temps : on relit celui-ci.
-		return r.FindByUserID(ctx, userID)
-	}
-	if err != nil {
+	if err := row.Scan(&cart.ID, &cart.Reference, &cart.UserID, &cart.CreatedAt, &cart.UpdatedAt); err != nil {
 		return domain.Cart{}, fmt.Errorf("création du panier de l'utilisateur %d : %w", userID, err)
 	}
 	return cart, nil
