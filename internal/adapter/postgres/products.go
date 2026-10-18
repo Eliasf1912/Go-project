@@ -50,10 +50,10 @@ func (r *ProductRepository) Search(ctx context.Context, filter usecase.ProductFi
 	}
 
 	if filter.Name != "" {
-		addCondition("p.name ILIKE", "%"+filter.Name+"%")
+		addCondition("p.name ILIKE", "%"+escapeLikePattern(filter.Name)+"%")
 	}
 	if filter.Description != "" {
-		addCondition("p.description ILIKE", "%"+filter.Description+"%")
+		addCondition("p.description ILIKE", "%"+escapeLikePattern(filter.Description)+"%")
 	}
 	if filter.CategoryID != nil {
 		addCondition("p.category_id =", *filter.CategoryID)

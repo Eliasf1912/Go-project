@@ -50,3 +50,78 @@ func logoutCmd(api *apiclient.Client) tea.Cmd {
 		return logoutDoneMsg{err: err}
 	}
 }
+
+// ordersLoadedMsg porte, en plus de la liste, un message optionnel (ex:
+// "Commande créée") à afficher une fois revenu sur l'écran de liste.
+type ordersLoadedMsg struct {
+	orders []dto.OrderResponse
+	info   string
+	err    error
+}
+
+type createOrderDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+type shipDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+type deliverDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+type cancelOrderDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+type deleteOrderDoneMsg struct {
+	orderID int
+	err     error
+}
+
+func loadOrdersCmd(api *apiclient.Client, info string) tea.Cmd {
+	return func() tea.Msg {
+		orders, err := api.AdminListOrders(context.Background())
+		return ordersLoadedMsg{orders: orders, info: info, err: err}
+	}
+}
+
+func createOrderCmd(api *apiclient.Client, userID int, lines []apiclient.AdminOrderLine) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.AdminCreateOrder(context.Background(), userID, lines)
+		return createOrderDoneMsg{order: order, err: err}
+	}
+}
+
+func shipCmd(api *apiclient.Client, orderID int) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.AdminShipOrder(context.Background(), orderID)
+		return shipDoneMsg{order: order, err: err}
+	}
+}
+
+func deliverCmd(api *apiclient.Client, orderID int) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.AdminDeliverOrder(context.Background(), orderID)
+		return deliverDoneMsg{order: order, err: err}
+	}
+}
+
+func cancelOrderCmd(api *apiclient.Client, orderID int, reason string) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.AdminCancelOrder(context.Background(), orderID, reason)
+		return cancelOrderDoneMsg{order: order, err: err}
+	}
+}
+
+func deleteOrderCmd(api *apiclient.Client, orderID int) tea.Cmd {
+	return func() tea.Msg {
+		err := api.AdminDeleteOrder(context.Background(), orderID)
+		return deleteOrderDoneMsg{orderID: orderID, err: err}
+	}
+}
