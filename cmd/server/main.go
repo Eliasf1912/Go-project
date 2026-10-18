@@ -32,6 +32,7 @@ func main() {
 	// Adapters
 	userRepo := postgres.NewUserRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
+	categoryRepo := postgres.NewCategoryRepository(db)
 	orderRepo := postgres.NewOrderRepository(db)
 	productRepo := postgres.NewProductRepository(db)
 	cartRepo := postgres.NewCartRepository(db)
@@ -39,7 +40,8 @@ func main() {
 
 	// Usecases
 	authService := usecase.NewAuthService(userRepo, passwordHasher, sessionRepo)
-	orderService := usecase.NewOrderService(orderRepo)
+	categoryService := usecase.NewCategoryService(categoryRepo)
+  orderService := usecase.NewOrderService(orderRepo)
 	productService := usecase.NewProductService(productRepo)
 	cartService := usecase.NewCartService(cartRepo, productRepo)
 
@@ -48,10 +50,11 @@ func main() {
 	orderHandler := httpserver.NewOrderHandler(orderService)
 	productHandler := httpserver.NewProductHandler(productService)
 	cartHandler := httpserver.NewCartHandler(cartService)
+  categoryHandler := httpserver.NewCategoryHandler(categoryService)
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpserver.NewRouter(authHandler, orderHandler, productHandler, cartHandler),
+		Handler:           httpserver.NewRouter(authHandler, orderHandler, productHandler, cartHandler, categoryHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
