@@ -393,8 +393,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case screenHome:
 		return m.updateHome(msg)
-	case screenRegister, screenConfirm, screenLogin, screenForgot, screenReset:
-	case screenRegister, screenConfirm, screenLogin, screenPay, screenCancel:
+	case screenRegister, screenConfirm, screenLogin, screenForgot, screenReset, screenPay, screenCancel:
 		return m.updateForm(msg)
 	case screenMain:
 		return m.updateMain(msg)
@@ -551,7 +550,7 @@ func (m Model) View() tea.View {
 
 	b.WriteString(styles.Title.Render(m.title()))
 	b.WriteString("\n")
-	if m.screen != screenHome && m.screen != screenRegister && m.screen != screenConfirm && m.screen != screenLogin {
+	if m.screen != screenHome && m.screen != screenRegister && m.screen != screenConfirm && m.screen != screenLogin && m.screen != screenForgot && m.screen != screenReset {
 		b.WriteString(styles.Help.Render("Connecté : " + m.user.Email))
 		b.WriteString("\n")
 	}
