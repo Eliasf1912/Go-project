@@ -35,6 +35,23 @@ func (h *OrderHandler) ListMine(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toOrderResponses(orders))
 }
 
+// Checkout valide le panier de l'utilisateur connecté
+func (h *OrderHandler) Checkout(w http.ResponseWriter, r *http.Request) {
+	user, ok := UserFromContext(r.Context())
+	if !ok {
+		writeDomainError(w, domain.ErrUnauthorized)
+		return
+	}
+
+	order, err := h.orders.Checkout(r.Context(), user.ID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, toOrderResponse(order))
+}
+
 // Pay fait passer une commande en "paid"
 func (h *OrderHandler) Pay(w http.ResponseWriter, r *http.Request) {
 	user, ok := UserFromContext(r.Context())
