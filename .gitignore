@@ -22,6 +22,7 @@ go.work.sum
 .env
 .env.*
 !.env.example
+ssh_host_key*
 
 # Local shell and editor files
 .ash_history

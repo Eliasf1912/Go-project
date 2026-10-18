@@ -344,3 +344,20 @@ ssh -p 23235 localhost                                # interface admin
 - Livrable absent sur MyGES
 - Livrable sous la forme d'un lien Git et pas d'une archive compressée au format ZIP
 - Participation inégale des membres du groupe à la soutenance et/ou au développement du code
+
+## Accès SSH
+
+Lancer le serveur SSH (hors de Docker, serveur API démarré) :
+
+    go run ./cmd/ssh
+
+Puis, depuis **Git Bash** sous Windows :
+
+    ssh -p 23234 localhost   # CLI client
+    ssh -p 23235 localhost   # CLI admin
+
+Avec le terminal PowerShell ou cmd, l'affichage peut être dégradé (couleurs, rafraîchissement).
+
+## Limites connues
+
+- Les échanges entre les CLI et le serveur sont en HTTP ; en production, il faudrait passer en HTTPS.go mod tidy
