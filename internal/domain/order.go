@@ -25,6 +25,17 @@ type Order struct {
 	Items        []OrderItem
 }
 
+// MarkAsPaid fait passer la commande de pending à paid. Impossible depuis
+// un autre statut : une commande déjà payée, livrée ou annulée ne peut
+// pas repasser à paid.
+func (o *Order) MarkAsPaid() error {
+	if o.Status != OrderStatusPending {
+		return ErrOrderNotPending
+	}
+	o.Status = OrderStatusPaid
+	return nil
+}
+
 type OrderItem struct {
 	ID          int
 	ProductID   int
