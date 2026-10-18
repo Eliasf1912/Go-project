@@ -20,4 +20,6 @@ var (
 	ErrInvalidCardExpiry       = errors.New("la date d'expiration doit être au format MM/AA")
 	ErrCardExpired             = errors.New("la carte a expiré")
 	ErrInvalidCVC              = errors.New("le CVC doit contenir 3 chiffres")
+	ErrOrderNotCancellable     = errors.New("la commande ne peut plus être annulée")
+	ErrCancelReasonRequired    = errors.New("la raison de l'annulation est obligatoire")
 )
