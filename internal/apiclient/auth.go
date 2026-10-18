@@ -35,3 +35,13 @@ func (c *Client) Me(ctx context.Context) (dto.MeResponse, error) {
 func (c *Client) Logout(ctx context.Context) error {
 	return c.do(ctx, http.MethodPost, "/auth/logout", nil, nil)
 }
+
+func (c *Client) ForgotPassword(ctx context.Context, email string) error {
+	req := dto.ForgotPasswordRequest{Email: email}
+	return c.do(ctx, http.MethodPost, "/auth/password/forgot", req, nil)
+}
+
+func (c *Client) ResetPassword(ctx context.Context, email, code, password string) error {
+	req := dto.ResetPasswordRequest{Email: email, Code: code, Password: password}
+	return c.do(ctx, http.MethodPost, "/auth/password/reset", req, nil)
+}

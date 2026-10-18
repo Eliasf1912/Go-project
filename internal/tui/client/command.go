@@ -13,7 +13,6 @@ type registerDoneMsg struct{ err error }
 
 type confirmDoneMsg struct{ err error }
 
-type logoutDoneMsg struct{ err error }
 type loginDoneMsg struct {
 	api  *apiclient.Client
 	user dto.MeResponse
@@ -51,6 +50,8 @@ func loginCmd(api *apiclient.Client, email, password string) tea.Cmd {
 	}
 }
 
+type logoutDoneMsg struct{ err error }
+
 func logoutCmd(api *apiclient.Client) tea.Cmd {
 	return func() tea.Msg {
 		err := api.Logout(context.Background())
@@ -58,6 +59,21 @@ func logoutCmd(api *apiclient.Client) tea.Cmd {
 	}
 }
 
+type forgotDoneMsg struct{ err error }
+
+type resetDoneMsg struct{ err error }
+
+func forgotCmd(api *apiclient.Client, email string) tea.Cmd {
+	return func() tea.Msg {
+		err := api.ForgotPassword(context.Background(), email)
+		return forgotDoneMsg{err: err}
+	}
+}
+
+func resetCmd(api *apiclient.Client, email, code, password string) tea.Cmd {
+	return func() tea.Msg {
+		err := api.ResetPassword(context.Background(), email, code, password)
+		return resetDoneMsg{err: err}
 type cartLoadedMsg struct {
 	cart dto.CartResponse
 	err  error

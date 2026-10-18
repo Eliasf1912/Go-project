@@ -73,17 +73,26 @@ func (r *fakeSessionRepo) Create(_ context.Context, s domain.Session) error {
 	return nil
 }
 
+func (r *fakeSessionRepo) DeleteByUser(_ context.Context, userID int) error {
+	for token, s := range r.sessions {
+		if s.UserID == userID {
+			delete(r.sessions, token)
+		}
+	}
+	return nil
+}
+
+func (r *fakeSessionRepo) Delete(_ context.Context, token string) error {
+	delete(r.sessions, token)
+	return nil
+}
+
 func (r *fakeSessionRepo) FindByToken(_ context.Context, token string) (domain.Session, error) {
 	s, ok := r.sessions[token]
 	if !ok {
 		return domain.Session{}, domain.ErrNotFound
 	}
 	return s, nil
-}
-
-func (r *fakeSessionRepo) Delete(_ context.Context, token string) error {
-	delete(r.sessions, token)
-	return nil
 }
 
 // fakeHasher remplace bcrypt : instantané et prévisible.
@@ -364,5 +373,41 @@ func TestLogout(t *testing.T) {
 	_, err = env.auth.Authenticate(ctx, token)
 	if !errors.Is(err, domain.ErrUnauthorized) {
 		t.Errorf("le jeton ne devrait plus être accepté, obtenu %v", err)
+	}
+}
+
+func TestResetPassword(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv()
+	registerAndConfirm(t, env)
+	oldToken, err := env.auth.Login(ctx, testEmail, testPassword)
+	if err != nil {
+		t.Fatalf("Login : %v", err)
+	}
+
+	if err := env.auth.ForgotPassword(ctx, "inconnu@test.fr"); err != nil {
+		t.Errorf("un email inconnu ne doit pas renvoyer d'erreur, obtenu %v", err)
+	}
+	if err := env.auth.ForgotPassword(ctx, testEmail); err != nil {
+		t.Fatalf("ForgotPassword : %v", err)
+	}
+	user, _ := env.users.FindByEmail(ctx, testEmail)
+
+	err = env.auth.ResetPassword(ctx, testEmail, "000000", "nouveaumdp123")
+	if !errors.Is(err, domain.ErrInvalidCode) {
+		t.Errorf("mauvais code : attendu ErrInvalidCode, obtenu %v", err)
+	}
+
+	if err := env.auth.ResetPassword(ctx, testEmail, user.PasswordResetCode, "nouveaumdp123"); err != nil {
+		t.Fatalf("ResetPassword : %v", err)
+	}
+	if _, err := env.auth.Authenticate(ctx, oldToken); !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("l'ancienne session devrait être supprimée, obtenu %v", err)
+	}
+	if _, err := env.auth.Login(ctx, testEmail, "nouveaumdp123"); err != nil {
+		t.Errorf("connexion avec le nouveau mot de passe : %v", err)
+	}
+	if _, err := env.auth.Login(ctx, testEmail, testPassword); !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Errorf("l'ancien mot de passe ne devrait plus marcher, obtenu %v", err)
 	}
 }

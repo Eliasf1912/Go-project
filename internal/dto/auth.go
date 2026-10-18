@@ -27,3 +27,13 @@ type LoginResponse struct {
 type MessageResponse struct {
 	Message string `json:"message"`
 }
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordRequest struct {
+	Email    string `json:"email"`
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}

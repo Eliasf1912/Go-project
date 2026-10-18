@@ -21,6 +21,11 @@ type screen int
 const (
 	screenLogin screen = iota
 	screenMain
+	screenCategories
+	screenCategoryActions
+	screenCategoryForm
+	screenUsers
+	screenUserActions
 	screenOrders
 	screenOrderActions
 	screenCreateOrder
@@ -28,6 +33,7 @@ const (
 	screenDeleteConfirm
 )
 
+// Même ordre que dans goMain.
 const (
 	mainCategories = iota
 	mainUsers
@@ -75,6 +81,10 @@ type Model struct {
 	err      string
 	info     string
 
+	categories []dto.CategoryResponse
+	selected   dto.CategoryResponse // catégorie choisie (ID 0 : nouvelle)
+	users        []dto.UserResponse
+	selectedUser dto.UserResponse
 	orders        []dto.OrderResponse
 	selectedOrder dto.OrderResponse
 	orderActions  []orderAction
@@ -229,6 +239,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loading {
 			return m, nil // on ignore les touches pendant une requête
 		}
+		if msg.String() == "esc" {
+			return m.back()
 		if msg.String() == "esc" && m.screen != screenLogin && m.screen != screenMain {
 			m.goBack()
 			return m, nil
@@ -244,6 +256,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.user = msg.user
 		m.goMain()
 		return m, nil
+
+	case categoriesLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.categories = msg.categories
+		m.goCategories()
+		return m, nil
+
+	case categoryChangedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		// On recharge la liste depuis le serveur pour afficher l'état réel.
+		m.info = msg.info
+		m.loading = true
+		return m, loadCategoriesCmd(m.api)
+
+	case usersLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.users = msg.users
+		m.goUsers()
+		return m, nil
+
+	case userDeletedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		if msg.anonymized {
+			m.info = "Compte anonymisé (il avait des commandes)."
+		} else {
+			m.info = "Compte supprimé."
+		}
+		m.loading = true
+		return m, loadUsersCmd(m.api)
 
 	case logoutDoneMsg:
 		m.loading = false
@@ -326,6 +383,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateLogin(msg)
 	case screenMain:
 		return m.updateMain(msg)
+	case screenCategories:
+		return m.updateCategories(msg)
+	case screenCategoryActions:
+		return m.updateCategoryActions(msg)
+	case screenCategoryForm:
+		return m.updateCategoryForm(msg)
+	case screenUsers:
+		return m.updateUsers(msg)
+	case screenUserActions:
+		return m.updateUserActions(msg)
 	case screenOrders:
 		return m.updateOrders(msg)
 	case screenOrderActions:
@@ -363,6 +430,15 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch choice {
+	case mainCategories:
+		m.err, m.info = "", ""
+		m.loading = true
+		return m, loadCategoriesCmd(m.api)
+	case mainUsers:
+		m.err, m.info = "", ""
+		m.loading = true
+		return m, loadUsersCmd(m.api)
+	case mainProducts, mainOrders:
 	case mainCategories, mainUsers, mainProducts:
 		m.info = "Bientôt disponible."
 	case mainOrders:
@@ -490,7 +566,7 @@ func (m Model) View() tea.View {
 	b.WriteString("\n")
 
 	switch m.screen {
-	case screenLogin:
+	case screenLogin, screenCategoryForm:
 		b.WriteString(m.form.View())
 	case screenMain, screenOrders, screenDeleteConfirm:
 		b.WriteString(m.menu.View())
@@ -520,6 +596,21 @@ func (m Model) View() tea.View {
 	return v
 }
 
+func (m Model) title() string {
+	switch m.screen {
+	case screenCategories:
+		return "Catégories"
+	case screenUsers:
+		return "Utilisateurs"
+	case screenUserActions:
+		return "Utilisateur : " + m.selectedUser.Email
+	case screenCategoryActions:
+		return "Catégorie : " + m.selected.Name
+	case screenCategoryForm:
+		if m.selected.ID == 0 {
+			return "Nouvelle catégorie"
+		}
+		return "Renommer : " + m.selected.Name
 // viewOrderActions affiche le détail d'une commande (lignes, raison
 // d'annulation éventuelle) avant le menu de ses actions possibles.
 func (m Model) viewOrderActions() string {
@@ -560,6 +651,27 @@ func (m Model) help() string {
 	switch m.screen {
 	case screenLogin:
 		return "Tab : champ suivant • Entrée : valider • Ctrl+C : quitter"
+	case screenCategoryForm:
+		return "Entrée : valider • Échap : retour • Ctrl+C : quitter"
+	case screenMain:
+		return "↑/↓ : choisir • Entrée : valider • Ctrl+C : quitter"
+	default:
+		return "↑/↓ : choisir • Entrée : valider • Échap : retour • Ctrl+C : quitter"
+	}
+}
+
+// back gère la touche Échap : on remonte d'un écran.
+func (m Model) back() (tea.Model, tea.Cmd) {
+	m.err, m.info = "", ""
+	switch m.screen {
+	case screenCategories, screenUsers:
+		m.goMain()
+	case screenUserActions:
+		m.goUsers()
+	case screenCategoryActions, screenCategoryForm:
+		m.goCategories()
+	}
+	return m, nil
 	case screenMain:
 		return "↑/↓ : choisir • Entrée : valider • Ctrl+C : quitter"
 	case screenOrders, screenOrderActions, screenDeleteConfirm:

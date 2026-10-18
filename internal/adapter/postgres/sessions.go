@@ -56,3 +56,11 @@ func (r *SessionRepository) Delete(ctx context.Context, token string) error {
 	}
 	return nil
 }
+
+func (r *SessionRepository) DeleteByUser(ctx context.Context, userID int) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("suppression des sessions de l'utilisateur : %w", err)
+	}
+	return nil
+}

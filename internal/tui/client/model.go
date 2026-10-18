@@ -25,6 +25,8 @@ const (
 	screenConfirm
 	screenLogin
 	screenMain
+	screenForgot
+	screenReset
 	screenCart
 	screenOrders
 	screenOrderActions
@@ -36,6 +38,7 @@ const (
 const (
 	homeLogin = iota
 	homeRegister
+	homeForgot
 	homeQuit
 )
 
@@ -66,14 +69,15 @@ type orderAction struct {
 }
 
 type Model struct {
-	api      *apiclient.Client
-	screen   screen
-	menu     components.Menu
-	form     components.Form
-	quitting bool
+	api    *apiclient.Client
+	screen screen
+	menu   components.Menu
+	form   components.Form
+
 	email    string
 	user     dto.MeResponse
 	loading  bool
+	quitting bool
 	err      string
 	info     string
 
@@ -95,7 +99,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m *Model) goHome(info string) {
 	m.screen = screenHome
-	m.menu = components.NewMenu("Se connecter", "Créer un compte", "Quitter")
+	m.menu = components.NewMenu("Se connecter", "Créer un compte", "Mot de passe oublié", "Quitter")
 	m.err, m.info = "", info
 }
 
@@ -122,6 +126,24 @@ func (m *Model) goLogin(info string) {
 	m.form = components.NewForm(
 		components.Field{Label: "Email", Placeholder: "nom@exemple.fr", Value: m.email},
 		components.Field{Label: "Mot de passe", Secret: true},
+	)
+	m.err, m.info = "", info
+}
+
+func (m *Model) goForgot() {
+	m.screen = screenForgot
+	m.form = components.NewForm(
+		components.Field{Label: "Email", Placeholder: "nom@exemple.fr", Value: m.email},
+	)
+	m.err, m.info = "", ""
+}
+
+func (m *Model) goReset(info string) {
+	m.screen = screenReset
+	m.form = components.NewForm(
+		components.Field{Label: "Email", Placeholder: "nom@exemple.fr", Value: m.email},
+		components.Field{Label: "Code reçu", Placeholder: "6 chiffres"},
+		components.Field{Label: "Nouveau mot de passe", Secret: true},
 	)
 	m.err, m.info = "", info
 }
@@ -282,6 +304,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.goMain()
 		return m, nil
 
+	case forgotDoneMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.goReset("Si ce compte existe, un code a été envoyé.")
+		return m, nil
+
+	case resetDoneMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err.Error()
+			return m, nil
+		}
+		m.goLogin("Mot de passe modifié, tu peux te connecter.")
+		return m, nil
+
 	case logoutDoneMsg:
 		m.loading = false
 		if m.quitting {
@@ -353,6 +393,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case screenHome:
 		return m.updateHome(msg)
+	case screenRegister, screenConfirm, screenLogin, screenForgot, screenReset:
 	case screenRegister, screenConfirm, screenLogin, screenPay, screenCancel:
 		return m.updateForm(msg)
 	case screenMain:
@@ -381,6 +422,8 @@ func (m Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.goLogin("")
 	case homeRegister:
 		m.goRegister()
+	case homeForgot:
+		m.goForgot()
 	case homeQuit:
 		return m, tea.Quit
 	}
@@ -406,6 +449,10 @@ func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenLogin:
 		m.email = m.form.Value(0)
 		return m, loginCmd(m.api, m.email, m.form.Value(1))
+	case screenForgot:
+		return m, forgotCmd(m.api, m.email)
+	case screenReset:
+		return m, resetCmd(m.api, m.email, m.form.Value(1), m.form.Value(2))
 	case screenPay:
 		return m, payCmd(m.api, m.selectedOrder.ID, m.form.Value(0), m.form.Value(1), m.form.Value(2))
 	case screenCancel:
@@ -585,6 +632,10 @@ func (m Model) title() string {
 		return "Confirmer le compte"
 	case screenLogin:
 		return "Se connecter"
+	case screenForgot:
+		return "Mot de passe oublié"
+	case screenReset:
+		return "Nouveau mot de passe"
 	case screenCart:
 		return "Mon panier"
 	case screenOrders:

@@ -62,3 +62,14 @@ func ValidatePassword(password string) error {
 
 	return nil
 }
+
+// CheckResetCode vérifie le code de réinitialisation du mot de passe.
+func (u User) CheckResetCode(code string, now time.Time) error {
+	if code == "" || code != u.PasswordResetCode {
+		return ErrInvalidCode
+	}
+	if u.PasswordResetExpiresAt == nil || u.PasswordResetExpiresAt.Before(now) {
+		return ErrCodeExpired
+	}
+	return nil
+}
