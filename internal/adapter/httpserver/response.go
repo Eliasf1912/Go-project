@@ -37,7 +37,8 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrCardExpired),
 		errors.Is(err, domain.ErrInvalidCVC),
 		errors.Is(err, domain.ErrCancelReasonRequired),
-		errors.Is(err, domain.ErrInvalidPriceRange):
+		errors.Is(err, domain.ErrInvalidPriceRange),
+		errors.Is(err, domain.ErrInvalidQuantity):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrEmailTaken),
 		errors.Is(err, domain.ErrOrderNotPending),
