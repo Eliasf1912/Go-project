@@ -44,6 +44,7 @@ func main() {
 	orderService := usecase.NewOrderService(orderRepo, cartRepo, productRepo)
 	productService := usecase.NewProductService(productRepo)
 	cartService := usecase.NewCartService(cartRepo, productRepo)
+	userService := usecase.NewUserService(userRepo)
 
 	// Handlers HTTP
 	authHandler := httpserver.NewAuthHandler(authService)
@@ -54,7 +55,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpserver.NewRouter(authHandler, orderHandler, productHandler, cartHandler, categoryHandler),
+		Handler:           httpserver.NewRouter(authHandler, orderHandler, productHandler, cartHandler, categoryHandler, userHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

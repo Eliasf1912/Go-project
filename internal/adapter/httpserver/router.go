@@ -26,6 +26,9 @@ func NewRouter(auth *AuthHandler, orders *OrderHandler, products *ProductHandler
 	mux.HandleFunc("PATCH /admin/categories/{id}", auth.RequireAdmin(categories.Rename))
 	mux.HandleFunc("DELETE /admin/categories/{id}", auth.RequireAdmin(categories.Delete))
 
+	// Utilisateurs (admin)
+	mux.HandleFunc("GET /admin/users", auth.RequireAdmin(users.List))
+	mux.HandleFunc("DELETE /admin/users/{id}", auth.RequireAdmin(users.Delete))
 	// Produits
 	mux.HandleFunc("GET /products", auth.RequireAuth(products.Search))
 

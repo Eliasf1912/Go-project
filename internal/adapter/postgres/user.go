@@ -27,8 +27,12 @@ const userColumns = `id, email, password_hash, role, confirmed,
 	password_reset_code, password_reset_expires_at,
 	created_at, updated_at, deleted_at`
 
+type scanner interface {
+	Scan(dest ...any) error
+}
+
 // scanUser lit une ligne de la table users et la convertit en domain.User.
-func scanUser(row *sql.Row) (domain.User, error) {
+func scanUser(row scanner) (domain.User, error) {
 	var (
 		user                   domain.User
 		confirmationCode       sql.NullString
