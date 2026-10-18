@@ -52,6 +52,14 @@ func writeDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, domain.ErrAccountNotConfirmed):
 		writeError(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, domain.ErrInvalidCategoryName):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain.ErrForbidden):
+		writeError(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain.ErrCategoryNameTaken), errors.Is(err, domain.ErrCategoryInUse):
+		writeError(w, http.StatusConflict, err.Error())
 	default:
 		log.Printf("erreur interne : %v", err)
 		writeError(w, http.StatusInternalServerError, "erreur interne")
