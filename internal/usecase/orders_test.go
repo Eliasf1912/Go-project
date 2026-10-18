@@ -149,3 +149,75 @@ func TestPay_StatutChangeEntreTemps(t *testing.T) {
 		t.Errorf("Pay() = %v, attendu %v", err, domain.ErrOrderStatusChanged)
 	}
 }
+
+func TestCancel_Succes(t *testing.T) {
+	repo := newFakeOrderRepo(domain.Order{ID: 1, UserID: 10, Status: domain.OrderStatusPaid})
+	service := usecase.NewOrderService(repo)
+
+	order, err := service.Cancel(context.Background(), 10, 1, "Je me suis trompé")
+	if err != nil {
+		t.Fatalf("Cancel() erreur inattendue : %v", err)
+	}
+	if order.Status != domain.OrderStatusCancelled {
+		t.Errorf("statut renvoyé = %s, attendu cancelled", order.Status)
+	}
+	saved := repo.orders[1]
+	if saved.Status != domain.OrderStatusCancelled {
+		t.Errorf("statut enregistré = %s, attendu cancelled", saved.Status)
+	}
+	if saved.CancelReason == nil || *saved.CancelReason != "Je me suis trompé" {
+		t.Errorf("raison enregistrée = %v, attendu %q", saved.CancelReason, "Je me suis trompé")
+	}
+}
+
+func TestCancel_Erreurs(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  domain.OrderStatus
+		userID  int
+		orderID int
+		reason  string
+		wantErr error
+	}{
+		{"commande d'un autre utilisateur", domain.OrderStatusPending, 20, 1, "Trop cher", domain.ErrNotFound},
+		{"commande inexistante", domain.OrderStatusPending, 10, 99, "Trop cher", domain.ErrNotFound},
+		{"en cours de livraison", domain.OrderStatusShipping, 10, 1, "Trop cher", domain.ErrOrderNotCancellable},
+		{"déjà annulée", domain.OrderStatusCancelled, 10, 1, "Trop cher", domain.ErrOrderNotCancellable},
+		{"raison faite d'espaces", domain.OrderStatusPending, 10, 1, "   ", domain.ErrCancelReasonRequired},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeOrderRepo(domain.Order{ID: 1, UserID: 10, Status: tt.status})
+			service := usecase.NewOrderService(repo)
+
+			_, err := service.Cancel(context.Background(), tt.userID, tt.orderID, tt.reason)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Cancel() = %v, attendu %v", err, tt.wantErr)
+			}
+			// Une annulation refusée ne doit jamais modifier la commande.
+			if got := repo.orders[1]; got.Status != tt.status || got.CancelReason != nil {
+				t.Errorf("commande modifiée : statut %s, raison %v", got.Status, got.CancelReason)
+			}
+		})
+	}
+}
+
+func TestCancel_StatutChangeEntreTemps(t *testing.T) {
+	repo := newFakeOrderRepo(domain.Order{ID: 1, UserID: 10, Status: domain.OrderStatusPaid})
+	// L'admin passe la commande en livraison juste avant notre UpdateStatus.
+	repo.beforeUpdate = func() {
+		o := repo.orders[1]
+		o.Status = domain.OrderStatusShipping
+		repo.orders[1] = o
+	}
+	service := usecase.NewOrderService(repo)
+
+	_, err := service.Cancel(context.Background(), 10, 1, "Trop cher")
+	if !errors.Is(err, domain.ErrOrderStatusChanged) {
+		t.Errorf("Cancel() = %v, attendu %v", err, domain.ErrOrderStatusChanged)
+	}
+	if got := repo.orders[1].Status; got != domain.OrderStatusShipping {
+		t.Errorf("statut = %s, attendu shipping (inchangé)", got)
+	}
+}

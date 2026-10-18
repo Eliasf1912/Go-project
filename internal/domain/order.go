@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type OrderStatus string
 
@@ -33,6 +36,22 @@ func (o *Order) MarkAsPaid() error {
 		return ErrOrderNotPending
 	}
 	o.Status = OrderStatusPaid
+	return nil
+}
+
+// Cancel fait passer la commande en "cancelled", avec une raison
+// obligatoire. Possible seulement depuis pending ou paid : une commande déjà en livraison, livrée ou annulée ne peut
+// pas être annulée.
+func (o *Order) Cancel(reason string) error {
+	if o.Status != OrderStatusPending && o.Status != OrderStatusPaid {
+		return ErrOrderNotCancellable
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return ErrCancelReasonRequired
+	}
+	o.Status = OrderStatusCancelled
+	o.CancelReason = &reason
 	return nil
 }
 

@@ -33,3 +33,45 @@ func TestMarkAsPaid(t *testing.T) {
 		})
 	}
 }
+
+func TestCancel(t *testing.T) {
+	tests := []struct {
+		name       string
+		from       OrderStatus
+		reason     string
+		wantErr    error
+		wantStatus OrderStatus
+		wantReason string
+	}{
+		{"pending", OrderStatusPending, "Je me suis trompé", nil, OrderStatusCancelled, "Je me suis trompé"},
+		{"paid", OrderStatusPaid, "Je me suis trompé", nil, OrderStatusCancelled, "Je me suis trompé"},
+		{"espaces autour retirés", OrderStatusPending, "  Trop cher  ", nil, OrderStatusCancelled, "Trop cher"},
+		{"shipping", OrderStatusShipping, "Trop tard", ErrOrderNotCancellable, OrderStatusShipping, ""},
+		{"delivered", OrderStatusDelivered, "Trop tard", ErrOrderNotCancellable, OrderStatusDelivered, ""},
+		{"déjà annulée", OrderStatusCancelled, "Encore", ErrOrderNotCancellable, OrderStatusCancelled, ""},
+		{"raison vide", OrderStatusPending, "", ErrCancelReasonRequired, OrderStatusPending, ""},
+		{"raison faite d'espaces", OrderStatusPending, "   ", ErrCancelReasonRequired, OrderStatusPending, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			order := Order{Status: tt.from}
+
+			err := order.Cancel(tt.reason)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("Cancel() = %v, attendu %v", err, tt.wantErr)
+			}
+			if order.Status != tt.wantStatus {
+				t.Errorf("statut = %s, attendu %s", order.Status, tt.wantStatus)
+			}
+			if tt.wantReason == "" {
+				// En cas d'erreur, aucune raison ne doit être enregistrée.
+				if order.CancelReason != nil {
+					t.Errorf("raison = %q, attendu aucune", *order.CancelReason)
+				}
+			} else if order.CancelReason == nil || *order.CancelReason != tt.wantReason {
+				t.Errorf("raison = %v, attendu %q", order.CancelReason, tt.wantReason)
+			}
+		})
+	}
+}
