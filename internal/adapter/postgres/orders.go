@@ -8,6 +8,7 @@ import (
 
 	"github.com/Eliasf1912/go-project/internal/domain"
 	"github.com/Eliasf1912/go-project/internal/usecase"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // vérifie à la compilation que OrderRepository implémente bien l'interface
@@ -24,11 +25,24 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 // ListByUserID renvoie les commandes d'un utilisateur, avec leurs lignes,
 // les plus récentes en premier
 func (r *OrderRepository) ListByUserID(ctx context.Context, userID int) ([]domain.Order, error) {
+	return r.listOrders(ctx, "WHERE user_id = $1", userID)
+}
+
+// ListAll renvoie toutes les commandes, tous clients confondus, les plus
+// récentes en premier. Réservé à l'admin.
+func (r *OrderRepository) ListAll(ctx context.Context) ([]domain.Order, error) {
+	return r.listOrders(ctx, "")
+}
+
+// listOrders factorise la lecture commune à ListByUserID et ListAll : même
+// SELECT et même scan, seule la clause WHERE change (vide pour tout
+// renvoyer).
+func (r *OrderRepository) listOrders(ctx context.Context, where string, args ...any) ([]domain.Order, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, reference, user_id, cart_id, status, cancel_reason, created_at, updated_at
 		FROM orders
-		WHERE user_id = $1
-		ORDER BY created_at DESC`, userID)
+		`+where+`
+		ORDER BY created_at DESC`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("recherche des commandes : %w", err)
 	}
@@ -67,6 +81,23 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID int) ([]domai
 	}
 
 	return orders, nil
+}
+
+// Delete supprime une commande ; ses lignes partent par cascade
+// (order_items.order_id est ON DELETE CASCADE). Réservé à l'admin.
+func (r *OrderRepository) Delete(ctx context.Context, id int) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM orders WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("suppression de la commande %d : %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("suppression de la commande %d : %w", id, err)
+	}
+	if rows == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 // FindByID renvoie une commande (avec ses lignes) par son id.
@@ -166,6 +197,9 @@ func (r *OrderRepository) Create(ctx context.Context, order domain.Order) (domai
 		RETURNING id, created_at, updated_at`,
 		order.Reference, order.UserID, intPtrToNull(order.CartID), order.Status)
 	if err := row.Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt); err != nil {
+		if isForeignKeyViolation(err) {
+			return domain.Order{}, domain.ErrNotFound // client inexistant
+		}
 		return domain.Order{}, fmt.Errorf("création de la commande : %w", err)
 	}
 
@@ -176,6 +210,9 @@ func (r *OrderRepository) Create(ctx context.Context, order domain.Order) (domai
 			RETURNING id, price_ttc`,
 			order.ID, item.ProductID, item.ProductName, item.Quantity, item.PriceHT)
 		if err := row.Scan(&item.ID, &item.PriceTTC); err != nil {
+			if isForeignKeyViolation(err) {
+				return domain.Order{}, domain.ErrNotFound // produit supprimé entre-temps
+			}
 			return domain.Order{}, fmt.Errorf("création d'une ligne de la commande : %w", err)
 		}
 		order.Items[i] = item
@@ -216,4 +253,12 @@ func (r *OrderRepository) listItems(ctx context.Context, orderID int) ([]domain.
 	}
 
 	return items, nil
+}
+
+// isForeignKeyViolation indique si PostgreSQL a refusé l'écriture parce
+// qu'elle référence une ligne qui n'existe pas (code 23503), par exemple
+// une commande pour un client inexistant.
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }

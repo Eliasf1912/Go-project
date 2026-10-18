@@ -103,3 +103,42 @@ func TestCreate_ValidationsSimultaneesDuMemePanier(t *testing.T) {
 		t.Errorf("%d commande(s) en base, attendu 1", orders)
 	}
 }
+
+func TestCreate_ClientInexistant(t *testing.T) {
+	repo := openTestDB(t)
+	ctx := context.Background()
+
+	var categoryID, productID int
+	if err := repo.db.QueryRowContext(ctx,
+		`INSERT INTO categories (name) VALUES ('test-client-inexistant') RETURNING id`).Scan(&categoryID); err != nil {
+		t.Fatalf("préparation des données : %v", err)
+	}
+	if err := repo.db.QueryRowContext(ctx, `INSERT INTO products (reference, name, price_ht, category_id)
+		VALUES ($1, 'Produit de test', 1000, $2) RETURNING id`, ids.NewProductRef(), categoryID).Scan(&productID); err != nil {
+		t.Fatalf("préparation des données : %v", err)
+	}
+	t.Cleanup(func() {
+		repo.db.Exec(`DELETE FROM products WHERE id = $1`, productID)
+		repo.db.Exec(`DELETE FROM categories WHERE id = $1`, categoryID)
+	})
+
+	// Commande créée par l'admin (sans panier) pour un client qui n'existe pas.
+	reference := ids.NewOrderRef()
+	_, err := repo.Create(ctx, domain.Order{
+		Reference: reference,
+		UserID:    999999,
+		Status:    domain.OrderStatusPending,
+		Items:     []domain.OrderItem{{ProductID: productID, ProductName: "Produit de test", Quantity: 1, PriceHT: 1000}},
+	})
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("Create() = %v, attendu %v", err, domain.ErrNotFound)
+	}
+
+	var orders int
+	if err := repo.db.QueryRowContext(ctx, `SELECT count(*) FROM orders WHERE reference = $1`, reference).Scan(&orders); err != nil {
+		t.Fatal(err)
+	}
+	if orders != 0 {
+		t.Errorf("%d commande(s) créée(s), attendu aucune", orders)
+	}
+}

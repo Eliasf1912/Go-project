@@ -24,7 +24,23 @@ type OrderRepository interface {
 	// ses lignes), puis vide ce panier (order.CartID) — le tout dans une
 	// seule transaction côté base : soit tout est écrit, soit rien ne l'est.
 	// Renvoie la commande complète, avec les prix TTC calculés par la base.
+	// order.CartID à nil (commande créée par un admin) : aucun panier n'est
+	// touché.
 	Create(ctx context.Context, order domain.Order) (domain.Order, error)
+	// ListAll renvoie toutes les commandes, tous clients confondus. Réservé
+	// à l'admin.
+	ListAll(ctx context.Context) ([]domain.Order, error)
+	// Delete supprime définitivement une commande (et ses lignes). Réservé
+	// à l'admin.
+	Delete(ctx context.Context, id int) error
+}
+
+// OrderLine est une ligne (produit, quantité) choisie par l'admin pour
+// créer une commande au nom d'un client : CreateForUser la résout en
+// OrderItem (nom et prix HT recopiés depuis le produit).
+type OrderLine struct {
+	ProductID int
+	Quantity  int
 }
 
 type OrderService struct {
@@ -101,6 +117,111 @@ func (s *OrderService) Checkout(ctx context.Context, userID int) (domain.Order, 
 	}
 
 	return s.orders.Create(ctx, order)
+}
+
+// ListAll renvoie toutes les commandes, tous clients confondus. Réservé à
+// l'admin.
+func (s *OrderService) ListAll(ctx context.Context) ([]domain.Order, error) {
+	return s.orders.ListAll(ctx)
+}
+
+// CreateForUser crée une commande "pending" pour un client donné, à partir
+// de lignes (produit, quantité) choisies par l'admin. Chaque produit doit
+// être actif ; son nom et son prix HT sont recopiés et figés, comme pour
+// une commande issue d'un panier. Réservé à l'admin.
+func (s *OrderService) CreateForUser(ctx context.Context, userID int, lines []OrderLine) (domain.Order, error) {
+	items := make([]domain.OrderItem, 0, len(lines))
+	for _, line := range lines {
+		if line.Quantity < 1 {
+			return domain.Order{}, domain.ErrInvalidQuantity
+		}
+
+		product, err := s.products.FindActiveByID(ctx, line.ProductID)
+		if err != nil {
+			return domain.Order{}, err
+		}
+
+		items = append(items, domain.OrderItem{
+			ProductID:   product.ID,
+			ProductName: product.Name,
+			Quantity:    line.Quantity,
+			PriceHT:     product.PriceHT,
+		})
+	}
+
+	order, err := domain.NewOrderForUser(userID, items, ids.NewOrderRef())
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	return s.orders.Create(ctx, order)
+}
+
+// Ship fait passer une commande payée en "en cours de livraison". Réservé
+// à l'admin.
+func (s *OrderService) Ship(ctx context.Context, orderID int) (domain.Order, error) {
+	order, err := s.orders.FindByID(ctx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	from := order.Status
+	if err := order.MarkAsShipping(); err != nil {
+		return domain.Order{}, err
+	}
+
+	if err := s.orders.UpdateStatus(ctx, order.ID, from, order.Status, nil); err != nil {
+		return domain.Order{}, err
+	}
+
+	return order, nil
+}
+
+// Deliver fait passer une commande en livraison en "livrée". Réservé à
+// l'admin.
+func (s *OrderService) Deliver(ctx context.Context, orderID int) (domain.Order, error) {
+	order, err := s.orders.FindByID(ctx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	from := order.Status
+	if err := order.MarkAsDelivered(); err != nil {
+		return domain.Order{}, err
+	}
+
+	if err := s.orders.UpdateStatus(ctx, order.ID, from, order.Status, nil); err != nil {
+		return domain.Order{}, err
+	}
+
+	return order, nil
+}
+
+// CancelAsAdmin annule n'importe quelle commande, avec une raison
+// obligatoire. Contrairement à Cancel, aucune vérification de
+// propriétaire : l'admin peut annuler la commande de n'importe quel client.
+func (s *OrderService) CancelAsAdmin(ctx context.Context, orderID int, reason string) (domain.Order, error) {
+	order, err := s.orders.FindByID(ctx, orderID)
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	from := order.Status
+	if err := order.Cancel(reason); err != nil {
+		return domain.Order{}, err
+	}
+
+	if err := s.orders.UpdateStatus(ctx, order.ID, from, order.Status, order.CancelReason); err != nil {
+		return domain.Order{}, err
+	}
+
+	return order, nil
+}
+
+// Delete supprime définitivement une commande, quel que soit son client ou
+// son statut. Réservé à l'admin.
+func (s *OrderService) Delete(ctx context.Context, orderID int) error {
+	return s.orders.Delete(ctx, orderID)
 }
 
 // Cancel annule une commande (statut "cancelled"), avec une raison
