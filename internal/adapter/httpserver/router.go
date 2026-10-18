@@ -17,6 +17,7 @@ func NewRouter(auth *AuthHandler) http.Handler {
 	mux.HandleFunc("POST /auth/confirm", auth.Confirm)
 	mux.HandleFunc("POST /auth/login", auth.Login)
 	mux.HandleFunc("GET /auth/me", auth.RequireAuth(auth.Me))
+	mux.HandleFunc("POST /auth/logout", auth.RequireAuth(auth.Logout))
 
 	return mux
 }

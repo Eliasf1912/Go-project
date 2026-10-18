@@ -48,3 +48,11 @@ func (r *SessionRepository) FindByToken(ctx context.Context, token string) (doma
 	}
 	return session, nil
 }
+
+func (r *SessionRepository) Delete(ctx context.Context, token string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = $1`, token)
+	if err != nil {
+		return fmt.Errorf("suppression de la session : %w", err)
+	}
+	return nil
+}

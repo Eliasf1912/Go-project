@@ -9,6 +9,7 @@ import (
 
 	"github.com/Eliasf1912/go-project/internal/apiclient"
 	"github.com/Eliasf1912/go-project/internal/dto"
+	"github.com/Eliasf1912/go-project/internal/tui/components"
 	"github.com/Eliasf1912/go-project/internal/tui/styles"
 )
 
@@ -41,8 +42,8 @@ const (
 type Model struct {
 	api    *apiclient.Client
 	screen screen
-	menu   menu
-	form   form
+	menu   components.Menu
+	form   components.Form
 
 	email   string
 	user    dto.MeResponse
@@ -63,40 +64,40 @@ func (m Model) Init() tea.Cmd {
 
 func (m *Model) goHome(info string) {
 	m.screen = screenHome
-	m.menu = newMenu("Se connecter", "Créer un compte", "Quitter")
+	m.menu = components.NewMenu("Se connecter", "Créer un compte", "Quitter")
 	m.err, m.info = "", info
 }
 
 func (m *Model) goRegister() {
 	m.screen = screenRegister
-	m.form = newForm(
-		field{label: "Email", placeholder: "nom@exemple.fr", value: m.email},
-		field{label: "Mot de passe", secret: true},
+	m.form = components.NewForm(
+		components.Field{Label: "Email", Placeholder: "nom@exemple.fr", Value: m.email},
+		components.Field{Label: "Mot de passe", Secret: true},
 	)
 	m.err, m.info = "", ""
 }
 
 func (m *Model) goConfirm(info string) {
 	m.screen = screenConfirm
-	m.form = newForm(
-		field{label: "Email", placeholder: "nom@exemple.fr", value: m.email},
-		field{label: "Code de confirmation", placeholder: "6 chiffres"},
+	m.form = components.NewForm(
+		components.Field{Label: "Email", Placeholder: "nom@exemple.fr", Value: m.email},
+		components.Field{Label: "Code de confirmation", Placeholder: "6 chiffres"},
 	)
 	m.err, m.info = "", info
 }
 
 func (m *Model) goLogin(info string) {
 	m.screen = screenLogin
-	m.form = newForm(
-		field{label: "Email", placeholder: "nom@exemple.fr", value: m.email},
-		field{label: "Mot de passe", secret: true},
+	m.form = components.NewForm(
+		components.Field{Label: "Email", Placeholder: "nom@exemple.fr", Value: m.email},
+		components.Field{Label: "Mot de passe", Secret: true},
 	)
 	m.err, m.info = "", info
 }
 
 func (m *Model) goMain() {
 	m.screen = screenMain
-	m.menu = newMenu("Produits", "Se déconnecter", "Quitter")
+	m.menu = components.NewMenu("Produits", "Se déconnecter", "Quitter")
 	m.err, m.info = "", ""
 }
 
@@ -147,6 +148,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.user = msg.user
 		m.goMain()
 		return m, nil
+
+	case logoutDoneMsg:
+		m.loading = false
+		// On oublie le jeton même si le serveur n'a pas répondu :
+		// la session expirera d'elle-même.
+		m.api = m.api.WithToken("")
+		m.user = dto.MeResponse{}
+		m.goHome("Tu es déconnecté.")
+		if msg.err != nil {
+			m.err = "Le serveur n'a pas pu fermer la session : " + msg.err.Error()
+		}
+		return m, nil
 	}
 
 	switch m.screen {
@@ -165,7 +178,7 @@ func (m Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	choice, selected := m.menu.update(key.String())
+	choice, selected := m.menu.Update(key.String())
 	if !selected {
 		return m, nil
 	}
@@ -181,22 +194,22 @@ func (m Model) updateHome(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
-	submitted, cmd := m.form.update(msg)
+	submitted, cmd := m.form.Update(msg)
 	if !submitted {
 		return m, cmd
 	}
 
-	m.email = m.form.value(0)
+	m.email = m.form.Value(0)
 	m.err, m.info = "", ""
 	m.loading = true
 
 	switch m.screen {
 	case screenRegister:
-		return m, registerCmd(m.api, m.email, m.form.value(1))
+		return m, registerCmd(m.api, m.email, m.form.Value(1))
 	case screenConfirm:
-		return m, confirmCmd(m.api, m.email, m.form.value(1))
+		return m, confirmCmd(m.api, m.email, m.form.Value(1))
 	case screenLogin:
-		return m, loginCmd(m.api, m.email, m.form.value(1))
+		return m, loginCmd(m.api, m.email, m.form.Value(1))
 	}
 	return m, nil
 }
@@ -206,7 +219,7 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	choice, selected := m.menu.update(key.String())
+	choice, selected := m.menu.Update(key.String())
 	if !selected {
 		return m, nil
 	}
@@ -214,10 +227,8 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mainProducts:
 		m.info = "Bientôt disponible."
 	case mainLogout:
-		// TODO : appeler POST /auth/logout quand la route existera.
-		m.api = m.api.WithToken("")
-		m.user = dto.MeResponse{}
-		m.goHome("Tu es déconnecté.")
+		m.loading = true
+		return m, logoutCmd(m.api)
 	case mainQuit:
 		return m, tea.Quit
 	}
@@ -237,9 +248,9 @@ func (m Model) View() tea.View {
 
 	switch m.screen {
 	case screenHome, screenMain:
-		b.WriteString(m.menu.view())
+		b.WriteString(m.menu.View())
 	default:
-		b.WriteString(m.form.view())
+		b.WriteString(m.form.View())
 	}
 
 	b.WriteString("\n")
