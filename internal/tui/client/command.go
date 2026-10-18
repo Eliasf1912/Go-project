@@ -74,6 +74,9 @@ func resetCmd(api *apiclient.Client, email, code, password string) tea.Cmd {
 	return func() tea.Msg {
 		err := api.ResetPassword(context.Background(), email, code, password)
 		return resetDoneMsg{err: err}
+	}
+}
+
 type cartLoadedMsg struct {
 	cart dto.CartResponse
 	err  error
