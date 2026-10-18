@@ -82,18 +82,33 @@ func TestTotalTTC(t *testing.T) {
 		items []OrderItem
 		want  int
 	}{
-		{"commande vide", nil, 0},
-		{"une ligne", []OrderItem{{Quantity: 1, PriceTTC: 5999}}, 5999},
-		{"quantité 3", []OrderItem{{Quantity: 3, PriceTTC: 1500}}, 4500},
-		{"plusieurs lignes", []OrderItem{
-			{Quantity: 1, PriceTTC: 5999},
-			{Quantity: 2, PriceTTC: 1500},
-		}, 8999},
+		{"aucun article", nil, 0},
+		{
+			"un article, quantité 1",
+			[]OrderItem{{PriceTTC: 1000, Quantity: 1}},
+			1000,
+		},
+		{
+
+			"un article, quantité > 1",
+			[]OrderItem{{PriceTTC: 1000, Quantity: 3}},
+			3000,
+		},
+		{
+			"plusieurs articles",
+			[]OrderItem{
+				{PriceTTC: 1000, Quantity: 2}, // 2000
+				{PriceTTC: 500, Quantity: 1},  // 500
+				{PriceTTC: 250, Quantity: 4},  // 1000
+			},
+			3500,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			order := Order{Items: tt.items}
+
 			if got := order.TotalTTC(); got != tt.want {
 				t.Errorf("TotalTTC() = %d, attendu %d", got, tt.want)
 			}
