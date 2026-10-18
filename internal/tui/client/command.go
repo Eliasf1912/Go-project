@@ -57,3 +57,64 @@ func logoutCmd(api *apiclient.Client) tea.Cmd {
 		return logoutDoneMsg{err: err}
 	}
 }
+
+type cartLoadedMsg struct {
+	cart dto.CartResponse
+	err  error
+}
+
+type checkoutDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+type ordersLoadedMsg struct {
+	orders []dto.OrderResponse
+	info   string // message à afficher avec la liste (ex : commande créée)
+	err    error
+}
+
+type payDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+type cancelDoneMsg struct {
+	order dto.OrderResponse
+	err   error
+}
+
+func loadCartCmd(api *apiclient.Client) tea.Cmd {
+	return func() tea.Msg {
+		cart, err := api.GetCart(context.Background())
+		return cartLoadedMsg{cart: cart, err: err}
+	}
+}
+
+func checkoutCmd(api *apiclient.Client) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.Checkout(context.Background())
+		return checkoutDoneMsg{order: order, err: err}
+	}
+}
+
+func loadOrdersCmd(api *apiclient.Client, info string) tea.Cmd {
+	return func() tea.Msg {
+		orders, err := api.ListMyOrders(context.Background())
+		return ordersLoadedMsg{orders: orders, info: info, err: err}
+	}
+}
+
+func payCmd(api *apiclient.Client, orderID int, cardNumber, expiry, cvc string) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.Pay(context.Background(), orderID, cardNumber, expiry, cvc)
+		return payDoneMsg{order: order, err: err}
+	}
+}
+
+func cancelOrderCmd(api *apiclient.Client, orderID int, reason string) tea.Cmd {
+	return func() tea.Msg {
+		order, err := api.CancelOrder(context.Background(), orderID, reason)
+		return cancelDoneMsg{order: order, err: err}
+	}
+}
