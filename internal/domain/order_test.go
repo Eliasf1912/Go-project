@@ -76,6 +76,46 @@ func TestCancel(t *testing.T) {
 	}
 }
 
+func TestNewOrderFromCart(t *testing.T) {
+	t.Run("panier vide", func(t *testing.T) {
+		_, err := NewOrderFromCart(Cart{ID: 1, UserID: 10}, "CMD-TEST00")
+		if !errors.Is(err, ErrCartEmpty) {
+			t.Errorf("NewOrderFromCart() = %v, attendu %v", err, ErrCartEmpty)
+		}
+	})
+
+	t.Run("panier avec des lignes", func(t *testing.T) {
+		cart := Cart{
+			ID:     1,
+			UserID: 10,
+			Items: []CartItem{
+				{ProductID: 1, ProductName: "Clavier", Quantity: 2, PriceHT: 4999, PriceTTC: 5999},
+				{ProductID: 2, ProductName: "Souris", Quantity: 1, PriceHT: 1999, PriceTTC: 2399},
+			},
+		}
+
+		order, err := NewOrderFromCart(cart, "CMD-TEST00")
+		if err != nil {
+			t.Fatalf("NewOrderFromCart() erreur inattendue : %v", err)
+		}
+		if order.Reference != "CMD-TEST00" || order.UserID != 10 || order.Status != OrderStatusPending {
+			t.Errorf("commande = %+v, champs de base inattendus", order)
+		}
+		if order.CartID == nil || *order.CartID != 1 {
+			t.Errorf("CartID = %v, attendu 1", order.CartID)
+		}
+		if len(order.Items) != 2 {
+			t.Fatalf("attendu 2 lignes, obtenu %d", len(order.Items))
+		}
+		// Le prix TTC n'est jamais recopié : il est recalculé par la base
+		// (colonne générée) à partir du prix HT figé ici.
+		first := order.Items[0]
+		if first.ProductID != 1 || first.ProductName != "Clavier" || first.Quantity != 2 || first.PriceHT != 4999 {
+			t.Errorf("première ligne = %+v, inattendue", first)
+		}
+	})
+}
+
 func TestTotalTTC(t *testing.T) {
 	tests := []struct {
 		name  string

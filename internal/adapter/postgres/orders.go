@@ -128,6 +128,66 @@ func (r *OrderRepository) UpdateStatus(ctx context.Context, id int, from, to dom
 	return nil
 }
 
+// Create vide le panier d'origine (order.CartID), puis enregistre une
+// commande "pending" et ses lignes — dans une seule transaction : si une
+// étape échoue, rien n'est écrit. Les prix TTC (colonne générée) ne sont
+// connus qu'après l'INSERT : on les relit avec RETURNING.
+//
+// Le panier est vidé en premier pour empêcher deux commandes à partir du
+// même panier : si deux validations arrivent en même temps, PostgreSQL
+// fait attendre le second DELETE jusqu'à la fin de la première
+// transaction ; il ne trouve alors plus aucune ligne et on renvoie
+// ErrCartEmpty sans rien créer.
+func (r *OrderRepository) Create(ctx context.Context, order domain.Order) (domain.Order, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Order{}, fmt.Errorf("création de la commande : %w", err)
+	}
+	defer tx.Rollback() // sans effet si Commit a réussi
+
+	if order.CartID != nil {
+		result, err := tx.ExecContext(ctx, `
+			DELETE FROM cart_items WHERE cart_id = $1`, *order.CartID)
+		if err != nil {
+			return domain.Order{}, fmt.Errorf("vidage du panier %d : %w", *order.CartID, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return domain.Order{}, fmt.Errorf("vidage du panier %d : %w", *order.CartID, err)
+		}
+		if rows == 0 {
+			return domain.Order{}, domain.ErrCartEmpty
+		}
+	}
+
+	row := tx.QueryRowContext(ctx, `
+		INSERT INTO orders (reference, user_id, cart_id, status)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at, updated_at`,
+		order.Reference, order.UserID, intPtrToNull(order.CartID), order.Status)
+	if err := row.Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt); err != nil {
+		return domain.Order{}, fmt.Errorf("création de la commande : %w", err)
+	}
+
+	for i, item := range order.Items {
+		row := tx.QueryRowContext(ctx, `
+			INSERT INTO order_items (order_id, product_id, product_name, quantity, price_ht)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, price_ttc`,
+			order.ID, item.ProductID, item.ProductName, item.Quantity, item.PriceHT)
+		if err := row.Scan(&item.ID, &item.PriceTTC); err != nil {
+			return domain.Order{}, fmt.Errorf("création d'une ligne de la commande : %w", err)
+		}
+		order.Items[i] = item
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Order{}, fmt.Errorf("création de la commande : %w", err)
+	}
+
+	return order, nil
+}
+
 // listItems renvoie les lignes d'une commande (table order_items)
 func (r *OrderRepository) listItems(ctx context.Context, orderID int) ([]domain.OrderItem, error) {
 	rows, err := r.db.QueryContext(ctx, `

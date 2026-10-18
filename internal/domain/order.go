@@ -66,6 +66,35 @@ func (o Order) TotalTTC() int {
 	return total
 }
 
+// NewOrderFromCart construit une commande "pending" à partir du panier d'un
+// utilisateur : les lignes du panier sont copiées (nom et prix HT figés,
+// comme l'exige le projet : l'historique d'une commande ne doit pas changer
+// si un prix est modifié plus tard). Refuse un panier vide.
+func NewOrderFromCart(cart Cart, reference string) (Order, error) {
+	if len(cart.Items) == 0 {
+		return Order{}, ErrCartEmpty
+	}
+
+	items := make([]OrderItem, 0, len(cart.Items))
+	for _, ci := range cart.Items {
+		items = append(items, OrderItem{
+			ProductID:   ci.ProductID,
+			ProductName: ci.ProductName,
+			Quantity:    ci.Quantity,
+			PriceHT:     ci.PriceHT,
+		})
+	}
+
+	cartID := cart.ID
+	return Order{
+		Reference: reference,
+		UserID:    cart.UserID,
+		CartID:    &cartID,
+		Status:    OrderStatusPending,
+		Items:     items,
+	}, nil
+}
+
 type OrderItem struct {
 	ID          int
 	ProductID   int
