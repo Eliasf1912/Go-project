@@ -15,6 +15,7 @@ type OrderResponse struct {
 	Reference    string              `json:"reference"`
 	Status       string              `json:"status"`
 	CancelReason *string             `json:"cancel_reason,omitempty"`
+	TotalTTC     int                 `json:"total_ttc"`
 	CreatedAt    time.Time           `json:"created_at"`
 	Items        []OrderItemResponse `json:"items"`
 }

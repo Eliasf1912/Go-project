@@ -55,6 +55,17 @@ func (o *Order) Cancel(reason string) error {
 	return nil
 }
 
+// TotalTTC renvoie le total TTC de la commande : la somme, pour chaque
+// ligne, du prix TTC unitaire multiplié par la quantité. Toujours
+// calculé ici, jamais stocké en base.
+func (o Order) TotalTTC() int {
+	total := 0
+	for _, item := range o.Items {
+		total += item.PriceTTC * item.Quantity
+	}
+	return total
+}
+
 type OrderItem struct {
 	ID          int
 	ProductID   int
