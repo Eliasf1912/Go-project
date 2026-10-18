@@ -33,19 +33,22 @@ func main() {
 	userRepo := postgres.NewUserRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
 	orderRepo := postgres.NewOrderRepository(db)
+	productRepo := postgres.NewProductRepository(db)
 	passwordHasher := &hasher.BcryptHasher{}
 
 	// Usecases
 	authService := usecase.NewAuthService(userRepo, passwordHasher, sessionRepo)
 	orderService := usecase.NewOrderService(orderRepo)
+	productService := usecase.NewProductService(productRepo)
 
 	// Handlers HTTP
 	authHandler := httpserver.NewAuthHandler(authService)
 	orderHandler := httpserver.NewOrderHandler(orderService)
+	productHandler := httpserver.NewProductHandler(productService)
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpserver.NewRouter(authHandler, orderHandler),
+		Handler:           httpserver.NewRouter(authHandler, orderHandler, productHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
